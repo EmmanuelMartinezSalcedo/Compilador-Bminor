@@ -1,0 +1,3 @@
+a: integer = 12; //hola bola
+a = 12 + 1;
+print a;
