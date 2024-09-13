@@ -5,6 +5,7 @@
 #include <utility>
 #include <cctype>
 #include <algorithm>
+#include <tuple>
 
 using namespace std;
 
@@ -18,7 +19,8 @@ enum TokenType {
     COMMENT,
     WHITESPACE,
     SYMBOL,
-    UNKNOWN
+    UNKNOWN,
+    ERROR
 };
 
 class Scanner {
@@ -30,9 +32,7 @@ public:
         operators = {"++", "--", "+", "-", "*", "/", "%", "^", "&&", "||", "!", "=", "<", ">", "<=", ">=", "==", "!="};
     }
 
-    ~Scanner() {
-        //TODO
-    }
+    ~Scanner() {}
 
     vector<vector<char>> readBMMFile(const string& filename) {
         vector<vector<char>> data;
@@ -108,6 +108,9 @@ public:
             }
         }
 
+        int tokenStartRow = row;
+        int tokenStartCol = col - 1; // Columna inicial del token
+
         // Verificar identificadores y palabras clave
         if (isalpha(c) || c == '_') {
             string value(1, c);
@@ -147,18 +150,28 @@ public:
             return {"SYMBOL", string(1, c)};
         }
 
-        // Otros casos: operadores y caracteres desconocidos
-        return {"UNKNOWN", string(1, c)};
+        // Si el carácter es inválido, registrar error
+        return {"ERROR", string(1, c)};
     }
 
-    vector<pair<string, string>> Tokenize(vector<vector<char>>& buffer) {
+    vector<tuple<string, string, int, int>> Tokenize(vector<vector<char>>& buffer) {
         int row = 0, col = 0;
-        vector<pair<string, string>> tokens;
+        vector<tuple<string, string, int, int>> tokens;
 
         while (row < buffer.size()) {
+            int startRow = row;
+            int startCol = col;
             pair<string, string> token = gettoken(buffer, row, col);
-            tokens.push_back(token);
+
             if (token.first == "EOF") break;
+            
+            tokens.push_back(make_tuple(token.first, token.second, startRow, startCol));
+
+            // Manejo de errores: imprimir mensaje si es un token de error
+            if (token.first == "ERROR") {
+                cerr << "Error: Caracter no valido '" << token.second << "' en fila " 
+                     << startRow + 1 << ", columna " << startCol + 1 << endl;
+            }
         }
 
         return tokens;
@@ -181,10 +194,11 @@ int main() {
         }
     }
 
-    vector<pair<string, string>> tokens = scanner.Tokenize(buffer);
+    vector<tuple<string, string, int, int>> tokens = scanner.Tokenize(buffer);
 
     for (const auto& token : tokens) {
-        cout << "Token: " << token.first << ", Value: " << token.second << endl;
+        cout << "Token: " << get<0>(token) << ", Value: " << get<1>(token) 
+             << "    Fila: " << get<2>(token) + 1 << ", Columna: " << get<3>(token) + 1 << endl;
     }
 
     return 0;
