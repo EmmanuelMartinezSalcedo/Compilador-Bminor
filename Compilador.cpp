@@ -3,13 +3,31 @@
 #include <vector>
 #include <string>
 #include <utility>
+#include <cctype>
+#include <algorithm>
 
 using namespace std;
+
+enum TokenType {
+    IDENTIFIER,
+    KEYWORD,
+    INTEGER,
+    STRING,
+    CHAR,
+    OPERATOR,
+    COMMENT,
+    WHITESPACE,
+    SYMBOL,
+    UNKNOWN
+};
 
 class Scanner {
 public:
     Scanner() {
-        //TODO
+        keywords = {"array", "boolean", "char", "else", "false", "for", "function", "if", 
+                    "integer", "print", "return", "string", "true", "void", "while"};
+        symbols = {",", ";", ":", "(", ")", "[", "]", "{", "}"};
+        operators = {"++", "--", "+", "-", "*", "/", "%", "^", "&&", "||", "!", "=", "<", ">", "<=", ">=", "==", "!="};
     }
 
     ~Scanner() {
@@ -36,12 +54,121 @@ public:
         return data;
     }
 
-    vector<pair<string, string>> Tokenize(vector<vector<char>> buffer) {
-
+    char getchar(vector<vector<char>>& buffer, int& row, int& col) {
+        char c = buffer[row][col];
+        col++;
+        if (col >= buffer[row].size()) {
+            row++;
+            col = 0;
+        }
+        return c;
     }
+
+    char peekchar(vector<vector<char>>& buffer, int row, int col) {
+        if (row >= buffer.size() || col >= buffer[row].size()) return '\0';
+        return buffer[row][col];
+    }
+
+    bool isSymbol(char c) {
+        return find(symbols.begin(), symbols.end(), string(1, c)) != symbols.end();
+    }
+
+    bool isOperator(string str) {
+        return find(operators.begin(), operators.end(), str) != operators.end();
+    }
+
+    pair<string, string> gettoken(vector<vector<char>>& buffer, int& row, int& col) {
+        if (row >= buffer.size()) return {"EOF", ""};
+
+        char c = getchar(buffer, row, col);
+
+        // Ignorar espacios en blanco
+        while (isspace(c)) {
+            if (row >= buffer.size()) return {"EOF", ""};
+            c = getchar(buffer, row, col);
+        }
+
+        // Verificar comentarios
+        if (c == '/') {
+            char next = peekchar(buffer, row, col);
+            if (next == '/') {
+                // Comentario de una línea
+                while (c != '\n' && row < buffer.size()) {
+                    c = getchar(buffer, row, col);
+                }
+                return {"COMMENT", "//"};
+            } else if (next == '*') {
+                // Comentario de múltiples líneas
+                getchar(buffer, row, col); // avanzar
+                while (!(c == '*' && peekchar(buffer, row, col) == '/') && row < buffer.size()) {
+                    c = getchar(buffer, row, col);
+                }
+                getchar(buffer, row, col); // avanzar para cerrar el comentario
+                return {"COMMENT", "/* */"};
+            }
+        }
+
+        // Verificar identificadores y palabras clave
+        if (isalpha(c) || c == '_') {
+            string value(1, c);
+            while (isalnum(peekchar(buffer, row, col)) || peekchar(buffer, row, col) == '_') {
+                value += getchar(buffer, row, col);
+            }
+            if (find(keywords.begin(), keywords.end(), value) != keywords.end()) {
+                return {"KEYWORD", value};
+            } else {
+                return {"IDENTIFIER", value};
+            }
+        }
+
+        // Verificar enteros
+        if (isdigit(c)) {
+            string value(1, c);
+            while (isdigit(peekchar(buffer, row, col))) {
+                value += getchar(buffer, row, col);
+            }
+            return {"INTEGER", value};
+        }
+
+        // Verificar operadores (incluyendo operadores de múltiples caracteres)
+        string op(1, c);
+        if (isOperator(op)) {
+            char next = peekchar(buffer, row, col);
+            string potentialOp = op + next;
+            if (isOperator(potentialOp)) {
+                getchar(buffer, row, col); // avanzar al siguiente carácter
+                return {"OPERATOR", potentialOp};
+            }
+            return {"OPERATOR", op};
+        }
+
+        // Verificar símbolos
+        if (isSymbol(c)) {
+            return {"SYMBOL", string(1, c)};
+        }
+
+        // Otros casos: operadores y caracteres desconocidos
+        return {"UNKNOWN", string(1, c)};
+    }
+
+    vector<pair<string, string>> Tokenize(vector<vector<char>>& buffer) {
+        int row = 0, col = 0;
+        vector<pair<string, string>> tokens;
+
+        while (row < buffer.size()) {
+            pair<string, string> token = gettoken(buffer, row, col);
+            tokens.push_back(token);
+            if (token.first == "EOF") break;
+        }
+
+        return tokens;
+    }
+
+private:
+    vector<string> keywords;
+    vector<string> symbols;
+    vector<string> operators;
 };
-
-
 
 int main() {
     Scanner scanner;
@@ -54,7 +181,11 @@ int main() {
         }
     }
 
-    vector<pair<string, string>> tokens;
+    vector<pair<string, string>> tokens = scanner.Tokenize(buffer);
+
+    for (const auto& token : tokens) {
+        cout << "Token: " << token.first << ", Value: " << token.second << endl;
+    }
 
     return 0;
 }
