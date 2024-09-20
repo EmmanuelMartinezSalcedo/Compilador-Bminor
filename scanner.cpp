@@ -11,7 +11,7 @@ using namespace std;
 
 
 int mostrar_solo_errores = 0;
-
+int mostrar_errores_debug = 0;
 vector<tuple<string,string,int,int>> errores_encontrados;
 
 class Scanner {
@@ -418,44 +418,47 @@ public:
             {
                 continue;
             }
-            else if(token.first == "COMMENT_LINE" || token.first =="COMMENT_LARGE")
+            if( mostrar_errores_debug == 1)
             {
-                continue;
+                if (token.first == "ERROR") {
+                    cout << "Error: Caracter no valido: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_INT")
+                {
+                    cout << "Error: Entero fuera de rango: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_IDENTIFIER")
+                {
+                    cout << "Error: Identificador fuera de rango: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_CADENA")
+                {
+                    cout << "Error: No se cerro la cadena: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_CHAR")
+                {
+                    cout << "Error: no se cerro el char: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first =="ERROR_ID_INICIO")
+                {
+                    cout << "Error: Identificador iniciado con int: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_COMMENT")
+                {
+                    cout << "Error: No se cerro el comentario: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
             }
-            else if (token.first == "ERROR") {
-                cout << "Error: Caracter no valido: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first == "ERROR_INT")
-            {
-                cout << "Error: Entero fuera de rango: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first == "ERROR_IDENTIFIER")
-            {
-                cout << "Error: Identificador fuera de rango: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first == "ERROR_CADENA")
-            {
-                cout << "Error: No se cerro la cadena: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first == "ERROR_CHAR")
-            {
-                cout << "Error: no se cerro el char: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first =="ERROR_ID_INICIO")
-            {
-                cout << "Error: Identificador iniciado con int: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first == "ERROR_COMMENT")
-            {
-                cout << "Error: No se cerro el comentario: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
+            if(token.first == "COMMENT_LINE" || token.first =="COMMENT_LARGE")
+                {
+                    continue;
+                }
             else{
                 cout << "Token: " << token.first << ", Value: " << token.second
              << "    Fila: " << startRow + 1 << ", Columna: " << startCol + 1 << endl;
