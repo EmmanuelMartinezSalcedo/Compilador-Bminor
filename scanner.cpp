@@ -9,19 +9,10 @@
 #include <string.h>
 using namespace std;
 
-enum TokenType {
-    IDENTIFIER,
-    KEYWORD,
-    INTEGER,
-    STRING,
-    CHAR,
-    OPERATOR,
-    COMMENT,
-    WHITESPACE,
-    SYMBOL,
-    UNKNOWN,
-    ERROR
-};
+
+int mostrar_solo_errores = 0;
+int mostrar_errores_debug = 1;
+vector<tuple<string,string,int,int>> errores_encontrados;
 
 class Scanner {
 public:
@@ -103,6 +94,12 @@ public:
                 while (!(c == '*' && peekchar(buffer, row, col) == '/') && row < buffer.size()) {
                     c = getchar(buffer, row, col);
                 }
+
+                if(c != '*' && peekchar(buffer,row,col) != '/')
+                {
+                    errores_encontrados.push_back(tuple("Error: No se cerro el comentario: '","/*",row+1,col+1));
+                    return {"ERROR_COMMENT","/*"};
+                }
                 getchar(buffer, row, col); // avanzar para cerrar el comentario
                 return {"COMMENT_LARGE", "/* */"};
             }
@@ -152,7 +149,7 @@ public:
                 }
                 else if(value =="integer")
                 {
-                    return {"INTEGER",value};
+                    return {"INTEGER_TYPE",value};
                 }
                 else if(value =="map")
                 {
@@ -186,6 +183,7 @@ public:
             } else {
                 if(value.size()>256)
                 {
+                    errores_encontrados.push_back(tuple("Error: Identificador fuera de rango: '",value,row+1,col+1));
                     return{"ERROR_IDENTIFIER",value};
                 }
                 return {"IDENTIFIER", value};
@@ -208,6 +206,7 @@ public:
                 value += c;
                 return {"CARACTER", value}; // Se retorna el token de tipo char
             } else {
+                errores_encontrados.push_back(tuple("Error: no se cerro el char: '",value,row+1,col+1));
                 return {"ERROR_CHAR", value}; // Error si no se cierra con comilla simple
             }
         }
@@ -225,6 +224,7 @@ public:
                 value += c;
                 return {"CADENAS", value}; // Retorna el token de tipo string
             } else {
+                errores_encontrados.push_back(tuple("Error: no se cerro el la cadena: '",value,row+1,col+1));
                 return {"ERROR_CADENA", value}; // Error si no se cierra con comillas dobles
             }
         }
@@ -239,10 +239,12 @@ public:
                 while (isalnum(peekchar(buffer, row, col)) || peekchar(buffer, row, col) == '_') {
                 value += getchar(buffer, row, col);
                 }
+                errores_encontrados.push_back(tuple("Error: Identificador iniciado con int:  '",value,row+1,col+1));
                 return{"ERROR_ID_INICIO",value};
             }
             if(value.size()>19)
             {
+                errores_encontrados.push_back(tuple("Error: Entero fuera de rango: '",value,row+1,col+1));
                 return {"ERROR_INT",value};
             }
             else if( value.size() ==19 )  //valor maximo para int es de 2^63 - 1   9,223,372,036,854,775,807
@@ -255,6 +257,7 @@ public:
                     return {"INTEGER", value};
                 }
                 else{
+                    errores_encontrados.push_back(tuple("Error: Entero fuera de rango: '",value,row+1,col+1));
                     return {"ERROR_INT",value};
                 }
             }
@@ -394,6 +397,7 @@ public:
         }
 
         // Si el carácter es inválido, registrar error
+        errores_encontrados.push_back(tuple("Error: Caracter no valido: '",string(1,c),row+1,col+1));
         return {"ERROR", string(1, c)};
     }
 
@@ -410,39 +414,58 @@ public:
             
             tokens.push_back(make_tuple(token.first, token.second, startRow, startCol));
 
-            // Manejo de errores: imprimir mensaje si es un token de error
-            if(token.first == "COMMENT_LINE" || token.first =="COMMENT_LARGE")
+            if(mostrar_solo_errores == 1)
             {
                 continue;
             }
-            else if (token.first == "ERROR") {
-                cerr << "Error: Caracter no valido: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first == "ERROR_INT")
+            if( mostrar_errores_debug == 1)
             {
-                cerr << "Error: Entero fuera de rango: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
+                if (token.first == "ERROR") {
+                    continue;
+                    cout << "Error: Caracter no valido: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                        
+                }
+                else if(token.first == "ERROR_INT")
+                {
+                    continue;
+                    cout << "Error: Entero fuera de rango: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_IDENTIFIER")
+                {
+                    continue;
+                    cout << "Error: Identificador fuera de rango: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_CADENA")
+                {
+                    continue;
+                    cout << "Error: No se cerro la cadena: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_CHAR")
+                {
+                    continue;
+                    cout << "Error: no se cerro el char: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first =="ERROR_ID_INICIO")
+                {
+                    continue;
+                    cout << "Error: Identificador iniciado con int: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
+                else if(token.first == "ERROR_COMMENT")
+                {
+                    continue;
+                    cout << "Error: No se cerro el comentario: '" << token.second << "' en fila " 
+                        << startRow + 1 << ", columna " << startCol + 1 << endl;
+                }
             }
-            else if(token.first == "ERROR_IDENTIFIER")
+            if(token.first == "COMMENT_LINE" || token.first =="COMMENT_LARGE" || token.first == "ERROR")
             {
-                cerr << "Error: Identificador fuera de rango: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first == "ERROR_CADENA")
-            {
-                cerr << "Error: No se cerro la cadena: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first == "ERROR_CHAR")
-            {
-                cerr << "Error: no se cerro el char: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
-            }
-            else if(token.first =="ERROR_ID_INICIO")
-            {
-                cerr << "Error: Identificador iniciado con int: '" << token.second << "' en fila " 
-                     << startRow + 1 << ", columna " << startCol + 1 << endl;
+                continue;
             }
             else{
                 cout << "Token: " << token.first << ", Value: " << token.second
@@ -470,7 +493,22 @@ int main() {
         }
     }
 
+    cout<<"------EMPEZANDO EL SCANNER..."<<endl;
     vector<tuple<string, string, int, int>> tokens = scanner.Tokenize(buffer);
+
+    if(errores_encontrados.size()>0)
+    {
+        cout<<"------SCANNER TERMINADO CON "<<errores_encontrados.size() <<" ERRORES"<<endl;
+        for(int i =0 ; i <errores_encontrados.size();i++)
+        {
+            cout << get<0>(errores_encontrados[i])  << get<1>(errores_encontrados[i]) << "' en fila " 
+                     << get<2>(errores_encontrados[i]) << ", columna " << get<3>(errores_encontrados[i])-1<< endl;
+        }
+    }
+    else{
+        cout<<"------SCANNER TERMINADO SIN ERRORES"<<endl;
+    }
+    
 
 
     return 0;

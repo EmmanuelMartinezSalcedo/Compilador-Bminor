@@ -11,7 +11,7 @@ q: string = "hola"
 r: boolean = true;
 w: boolean = false;
 Caracter: char = 'w';
-variable
+_variable_
 COM_p1_LAR;
 1valor: integer = 4;
 identificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargo
