@@ -124,7 +124,7 @@ public:
                 }
                 else if(value =="char")
                 {
-                    return {"CHAR",value};
+                    return {"CHAR_TYPE",value};
                 }
                 else if(value =="else")
                 {
@@ -203,7 +203,7 @@ public:
             c = getchar(buffer, row, col);
             if (c == '\'') {
                 value += c;
-                return {"CARACTER", value}; // Se retorna el token de tipo char
+                return {"CHAR", value}; // Se retorna el token de tipo char
             } else {
                 errores_encontrados.push_back(tuple("Error: no se cerro el char: '",value,row+1,col+1));
                 return {"ERROR", value}; // Error si no se cierra con comilla simple

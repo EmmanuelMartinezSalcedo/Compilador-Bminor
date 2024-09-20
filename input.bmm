@@ -1,8 +1,9 @@
 a: integer = 12.12; //comentario en linea
 k: char = 'b';
+k: char = '\o';
 hola: char = ' ';
 "asdasdasdsad"; /* COMENTARIO LARGO
-ENTRE VARIAS LINEAS */
+ENTRE VARIAS LINEAS */ */
     
 
 a = 12 + 9223372036854775807;
