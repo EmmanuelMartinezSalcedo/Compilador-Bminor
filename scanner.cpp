@@ -251,7 +251,7 @@ public:
 
                 int part1 = stoi(value.substr(0,9));
                 int part2 = stoi(value.substr(10));
-                if(part1 <= 922337203 && part2<=854775807)
+                if (part1 <= 922337203 && part2<=854775807)
                 {
                     return {"INTEGER", value};
                 }
@@ -383,14 +383,6 @@ public:
             else if(symbol =="}")
             {
                 return {"R_BRACES",symbol};
-            }
-            else if(symbol =="\"")
-            {
-                return {"DOUBLE_QUOTE",symbol};
-            }
-            else if(symbol =="\'")
-            {
-                return {"QUOTE",symbol};
             }
             
         }

@@ -1,5 +1,6 @@
-a: integer = 12; //comentario en linea
+a: integer = 12.12; //comentario en linea
 k: char = 'b';
+hola: char = ' ';
 "asdasdasdsad"; /* COMENTARIO LARGO
 ENTRE VARIAS LINEAS */
     
