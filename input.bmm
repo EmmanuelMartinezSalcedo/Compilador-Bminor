@@ -1,9 +1,9 @@
 a: integer = 12; //comentario en linea
 k: char = 'b';
-/*
-    COMENTARIO LARGO
-    ENTRE VARIAS LINEAS
-*/
+"asdasdasdsad"; /* COMENTARIO LARGO
+ENTRE VARIAS LINEAS */
+    
+
 a = 12 + 9223372036854775807;
 b = 9223372036854775807;
 c = 9999999999999999999;
@@ -16,5 +16,15 @@ COM_p1_LAR;
 1valor: integer = 4;
 identificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargo
 a++;
+#c;
+pru#ba;
 b @ = 7;
 print a;
+print "The temperature is: ", temp, " degrees\n";
+
+printarray: function void ( a: array [] integer, size: integer ) = {
+	i: integer;
+	for( i=0;i<size;i++) {
+		print a[i], "\n";
+	}
+}
