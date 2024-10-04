@@ -1,6 +1,6 @@
 # Bminor Compiler
 
-This is the Jean Paul BRANCH.
+This is the Main BRANCH.
 
 This is a project for the Compilers class.
 
