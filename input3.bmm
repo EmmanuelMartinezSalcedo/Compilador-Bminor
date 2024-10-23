@@ -1,0 +1,40 @@
+integer a; //comentario en linea
+char k = 'b';
+char k = 'x';
+char hola = ' ';
+
+//"asdasdasdsad"; 
+/* COMENTARIO LARGO
+ENTRE VARIAS LINEAS */
+    
+
+// a = 12 + 922337;
+string q = "hola";
+boolean r = true;
+boolean w = false;
+boolean a = 123;
+char _Caracter = 'w';
+
+void printarray ( integer[] a, integer size ) {
+	integer i;
+	for( i=0;i<size;i=i+1;) {
+		print(a[i], "\n");
+	}
+}
+
+integer sum (integer a, integer b) {
+  
+  return a + b;
+}
+
+boolean isEven (integer a) {
+  if (a % 2 == 0) {
+    return true;
+  }
+}
+
+string less (string a, string b) {
+  if (a < b == true) {
+    return "a less than b";
+  }
+}

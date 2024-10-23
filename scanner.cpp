@@ -401,6 +401,26 @@ public:
             int startRow = row;
             int startCol = col;
             pair<string, string> token = gettoken(buffer, row, col);
+            if(token.first == "STRING")
+            {
+                
+                string clean = token.second.substr(1, token.second.length() - 2);
+                string comillas = "\"";
+                tokens.push_back(make_tuple("DOUBLE_QUOTE",comillas,startRow,startCol));
+                tokens.push_back(make_tuple(token.first,clean,startRow,startCol));
+                tokens.push_back(make_tuple("DOUBLE_QUOTE",comillas,startRow,startCol));
+                continue;
+            }
+            if(token.first == "CHAR")
+            {
+                
+                string clean = token.second.substr(1, token.second.length() - 2);
+                string comillas_m = "\'";
+                tokens.push_back(make_tuple("SINGLE_QUOTE",comillas_m,startRow,startCol));
+                tokens.push_back(make_tuple(token.first,clean,startRow,startCol));
+                tokens.push_back(make_tuple("SINGLE_QUOTE",comillas_m,startRow,startCol));
+                continue;
+            }
             if (token.first == "ERROR" || token.first == "COMMENT_LINE" || token.first =="COMMENT_LARGE") {
                 continue;
             }
@@ -415,11 +435,6 @@ public:
             if(mostrar_solo_errores == 1)
             {
                 continue;
-            }
-
-            else{
-                printf("Token: %-20s Value: %-20s Fila: %-20d Columna: %-20d\n", 
-       token.first.c_str(), token.second.c_str(), startRow + 1, startCol + 1);
             }
         }
 
@@ -441,6 +456,7 @@ public:
     const char* cursor;
     int index;
     bool debug;
+    int tab = 0;
 
     Parser(vector<tuple<string, string, int, int>>& tkns, bool dbg) {
         tokens = tkns;
@@ -461,11 +477,18 @@ private:
         int tokenSize = token.size();
 
         for (int i = 0; i < tokenSize; i++) {
-            if (cursor[i] == token[i]) cout << cursor[i] << " = " << token[i] << endl;
+            for (int i = 0; i < tab; i++) {
+                cout << ' ';
+            }
+            if (cursor[i] == token[i]) {
+                cout << cursor[i] << " = " << token[i] << endl;
+            }
             if (cursor[i] != token[i]) {
+                
                 return false;
             }
         }
+        
         return true;
     }
 
@@ -474,21 +497,38 @@ private:
             index++;
             cursor = get<1>(tokens[index]).c_str(); 
         }
+        cout << "------------- NEXT TOKEN -------------" << endl;
+        cout << get<1>(tokens[index]) << endl;
+        cout << "----------------------------------------" << endl;
     }
 
-    void goBackToken() {
-        if (index - 1 >= 0) {
-            index--;
-            cursor = get<1>(tokens[index]).c_str(); 
+    bool checkTokenType(const string& tokenType) {
+        if (get<0>(tokens[index]) == tokenType) {
+            cout << "-----> " << get<1>(tokens[index]) << "-" << tokenType << " <-----" << endl;
+            return true;
         }
+        return false;
+    }
+    void printDebug(string s) {
+        if (debug) {
+            for (int i = 0; i < tab; i++) {
+                cout << ' ';
+            }
+        }
+        cout << s << endl;
+        //tab++;
     }
 
     bool PROGRAM() {
-        if (debug) cout << "PROGRAM -> DECLARATION PROGRAM_REST" << endl;
-        cout << endl;
-        if (DECLARATION()) {
+        printDebug("PROGRAM -> DECLARATION PROGRAM_REST");
         /* PROGRAM -> DECLARATION PROGRAM_REST */
+        if (DECLARATION()) {
             if (PROGRAM_REST()) {
+                cout << "PARSE ENDED IN " << get<0>(tokens[index]) << ' ' << get<1>(tokens[index]) << ' ' << get<2>(tokens[index]) << ' ' << get<3>(tokens[index]) <<endl;
+                if (index != tokens.size() - 1) {
+                    cout << "Failure parsing";
+                    return false;
+                }
                 return true;
             }
         }
@@ -496,66 +536,68 @@ private:
     }
 
     bool PROGRAM_REST() {
-        if (debug) cout << "PROGRAM_REST -> DECLARATION PROGRAM_REST" << endl;
-        if (debug) cout << "PROGRAM_REST -> EOP" << endl;
-        cout << endl;
-        if (DECLARATION()) {
+        printDebug("PROGRAM_REST -> DECLARATION PROGRAM_REST");
         /* PROGRAM_REST -> DECLARATION PROGRAM_REST*/
+        if (DECLARATION()) {
             if (PROGRAM_REST()) {
                 return true;
             }
-        } else if (EOP()) {
-            /* PROGRAM_REST -> EOP */
-            return true;
+        } else {
+            
+            printDebug("PROGRAM_REST -> EOP");
+        /* PROGRAM_REST -> EOP */
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool DECLARATION() {
-        if (debug) cout << "DECLARATION -> FUNCTION" << endl;
-        if (debug) cout << "DECLARATION -> VAR_DECL" << endl;
-        cout << endl;
-        if (VAR_DECL()) {
-        /* DECLARATION -> FUNCTION */
-            return true;
-        } else if (FUNCTION()) {
-        /* DECLARATION -> VAR_DECL */
-            return true;
+        printDebug("DECLARATION -> FUNCTION DECLARATION_REST");
+        /* DECLARATION -> FUNCTION DECLARATION_REST*/
+        if (FUNCTION()) {
+            if (DECLARATION_REST()) {
+                return true;
+            }
         }
         return false;
     }
     
-    bool FUNCTION() {
-        if (debug) cout << "FUNCTION -> FUNCTION_REST (PARAMS) { STMT_LIST }" << endl;
-        cout << endl;
-        if (FUNCTION_REST()) {
-        /* FUNCTION -> FUNCTION_REST (PARAMS) { STMT_LIST } */
-            if (checkToken("(")) {
-                goNextToken();
-                if (PARAMS()) {
-                    if (checkToken(")")) {
+    bool DECLARATION_REST() {
+        printDebug("DECLARATION_REST -> ( PARAMS ) { STMT_LIST }");
+        /* DECLARATION_REST -> ( PARAMS ) { STMT_LIST }  */
+        if (checkToken("(")) {
+            goNextToken();
+            if (PARAMS()) {
+                if (checkToken(")")) {
+                    goNextToken();
+                    if (checkToken("{")) {
                         goNextToken();
-                        if (checkToken("{")) {
-                            goNextToken();
-                            if (STMT_LIST()) {
-                                if (checkToken("}")) {
-                                    goNextToken();
-                                    return true;
-                                }
+                        if (STMT_LIST()) {
+                            if (checkToken("}")) {
+                                goNextToken();
+                                return true;
                             }
                         }
                     }
                 }
             }
+        } else {
+            
+            printDebug("DECLARATION_REST -> VAR_DECL");
+        /* DECLARATION_REST -> VAR_DECL  */
+            if (VAR_DECL()) {
+                return true;
+            }
         }
         return false;
     }
 
-    bool FUNCTION_REST() {
-        if (debug) cout << "FUNCTION_REST -> TYPE IDENTIFIER" << endl;
-        cout << endl;
+    bool FUNCTION() {
+        printDebug("FUNCTION -> TYPE IDENTIFIER");
+        /* FUNCTION -> TYPE IDENTIFIER */
         if (TYPE()) {
-        /* FUNCTION_REST -> TYPE IDENTIFIER */
             if (IDENTIFIER()) {
                 return true;
             }
@@ -564,47 +606,60 @@ private:
     }
 
     bool TYPE() {
-        if (debug) cout << "TYPE -> INT_TYPE TYPE_REST" << endl;
-        if (debug) cout << "TYPE -> BOOL_TYPE TYPE_REST" << endl;
-        if (debug) cout << "TYPE -> CHAR_TYPE TYPE_REST" << endl;
-        if (debug) cout << "TYPE -> STRING_TYPE TYPE_REST" << endl;
-        if (debug) cout << "TYPE -> VOID_TYPE TYPE_REST" << endl;
-        cout << endl;
-        if (INT_TYPE()) {
+        printDebug("TYPE -> INT_TYPE TYPE_REST");
         /* TYPE -> INT_TYPE TYPE_REST */
+        if (INT_TYPE()) {
             if (TYPE_REST()) {
                 return true;
             }
-        } else if (BOOL_TYPE()) {
+        } else {
+            
+            printDebug("TYPE -> BOOL_TYPE TYPE_REST");
         /* TYPE -> BOOL_TYPE TYPE_REST */
-            if (TYPE_REST()) {
-                return true;
+            if (BOOL_TYPE()) {
+                if (TYPE_REST()) {
+                    return true;
+                }
             }
-        } else if (CHAR_TYPE()) {
+            else {
+                
+                printDebug("TYPE -> CHAR_TYPE TYPE_REST");
         /* TYPE -> CHAR_TYPE TYPE_REST*/
-            if (TYPE_REST()) {
-                return true;
-            }
-        } else if (STRING_TYPE()) {
+                if (CHAR_TYPE()) {
+                    if (TYPE_REST()) {
+                        return true;
+                    }
+                }
+                else {
+                    
+                    printDebug("TYPE -> STRING_TYPE TYPE_REST");
         /* TYPE -> STRING_TYPE TYPE_REST*/
-            if (TYPE_REST()) {
-                return true;
-            }
-        } else if (VOID_TYPE()) {
+                    if (STRING_TYPE()) {
+                        if (TYPE_REST()) {
+                            return true;
+                        }
+                    }
+                    else {
+                        
+                        printDebug("TYPE -> VOID_TYPE TYPE_REST");
         /* TYPE -> VOID_TYPE TYPE_REST */
-            if (TYPE_REST()) {
-                return true;
+                        if (VOID_TYPE()) {
+                            if (TYPE_REST()) {
+                                return true;
+                            }
+                        }
+                    
+                    }
+                }
             }
         }
         return false;
     }
 
     bool TYPE_REST() {
-        if (debug) cout << "TYPE_REST -> [ ] TYPE_REST" << endl;
-        if (debug) cout << "TYPE_REST -> EOP" << endl;
-        cout << endl;
-        if (checkToken("[")) {
+        printDebug("TYPE_REST -> [ ] TYPE_REST");
         /* TYPE_REST -> [ ] TYPE_REST */  
+        if (checkToken("[")) {
             goNextToken();
             if (checkToken("]")) {
                 goNextToken();
@@ -612,23 +667,21 @@ private:
                     return true;
                 }
             }
-        } else if (EOP()) {
+        } else {
+            
+            printDebug("TYPE_REST -> EOP");
         /* TYPE_REST -> EOP */
-            return true;
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool PARAMS() {
-        if (debug) cout << "PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST" << endl;
-        if (debug) cout << "PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST" << endl;
-        if (debug) cout << "PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST" << endl;
-        if (debug) cout << "PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST" << endl;
-        if (debug) cout << "PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST" << endl;
-        if (debug) cout << "PARAMS -> EOP" << endl;
-        cout << endl;
-        if (INT_TYPE()) {
+        printDebug("PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST*/
+        if (INT_TYPE()) {
             if (TYPE_REST()) {
                 if (IDENTIFIER()) {
                     if (PARAMS_REST()) {
@@ -636,93 +689,105 @@ private:
                     }
                 }
             }
-        } else if (BOOL_TYPE()) {
+        } else {
+            
+            printDebug("PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST*/
-            if (TYPE_REST()) {
-                if (IDENTIFIER()) {
-                    if (PARAMS_REST()) {
-                        return true;
+            if (BOOL_TYPE()) {
+                if (TYPE_REST()) {
+                    if (IDENTIFIER()) {
+                        if (PARAMS_REST()) {
+                            return true;
+                        }
                     }
                 }
-            }
-        } else if (CHAR_TYPE()) {
+            } else {
+                
+                printDebug("PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-            if (TYPE_REST()) {
-                if (IDENTIFIER()) {
-                    if (PARAMS_REST()) {
-                        return true;
+                if (CHAR_TYPE()) {
+                    if (TYPE_REST()) {
+                        if (IDENTIFIER()) {
+                            if (PARAMS_REST()) {
+                                return true;
+                            }
+                        }
                     }
-                }
-            }
-        } else if (STRING_TYPE()) {
+                } else {
+                    
+                    printDebug("PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-            if (TYPE_REST()) {
-                if (IDENTIFIER()) {
-                    if (PARAMS_REST()) {
-                        return true;
-                    }
-                }
-            }
-        } else if (VOID_TYPE()) {
+                    if (STRING_TYPE()) {
+                        if (TYPE_REST()) {
+                            if (IDENTIFIER()) {
+                                if (PARAMS_REST()) {
+                                    return true;
+                                }
+                            }
+                        }
+                    } else {
+                        
+                        printDebug("PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-            if (TYPE_REST()) {
-                if (IDENTIFIER()) {
-                    if (PARAMS_REST()) {
-                        return true;
+                        if (VOID_TYPE()) {
+                            if (TYPE_REST()) {
+                                if (IDENTIFIER()) {
+                                    if (PARAMS_REST()) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        } else {
+                            
+                            printDebug("PARAMS -> EOP");
+        /* PARAMS -> EOP */
+                            if (EOP()) {
+                                return true;
+                            }
+                        }
                     }
                 }
             }
-        } else if (EOP()) {
-        /* PARAMS -> EOP */
-            return true;
-        }
+        } 
         return false;
     }
 
     bool PARAMS_REST() {
-        if (debug) cout << "PARAMS_REST -> , PARAMS" << endl;
-        if (debug) cout << "PARAMS_REST -> EOP" << endl;
-        cout << endl;
-        if (checkToken(",")) {
+        printDebug("PARAMS_REST -> , PARAMS");
         /* PARAMS_REST -> , PARAMS */
+        if (checkToken(",")) {
             goNextToken();
             if (PARAMS()) {
                 return true;
             }
-        } else if (EOP()) {
+        } else {
+            
+            printDebug("PARAMS_REST -> EOP");
         /* PARAMS_REST -> EOP  */
-            return true;
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool VAR_DECL() {
-        if (debug) cout << "VAR_DECL-> FUNCTION_REST VAR_DECL_REST" << endl;
-        cout << endl;
-        if (FUNCTION_REST()) {
-        /* VAR_DECL-> FUNCTION_REST VAR_DECL_REST */
-            if (VAR_DECL_REST()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool VAR_DECL_REST() {
-        if (debug) cout << "VAR_DECL_REST -> ;" << endl;
-        if (debug) cout << "VAR_DECL_REST -> = EXPRESSION ;" << endl;
-        cout << endl;
+        printDebug("VAR_DECL -> ;");
+        /* VAR_DECL-> ; */
         if (checkToken(";")) {
-        /* VAR_DECL_REST -> ; */
             goNextToken();
             return true;
-        } else if (checkToken("=")) {
-        /* VAR_DECL_REST -> = EXPRESSION ; */
-            goNextToken();
-            if (EXPRESSION()) {
-                if (checkToken(";")) {
-                    goNextToken();
-                    return true;
+        } else  {
+            
+            printDebug("VAR_DECL -> = EXPRESSION ;");
+        /* VAR_DECL-> = EXPRESSION ; */
+            if (checkToken("=")) {
+                goNextToken();
+                if (EXPRESSION()) {
+                    if (checkToken(";")) {
+                        goNextToken();
+                        return true;
+                    }
                 }
             }
         }
@@ -730,10 +795,9 @@ private:
     }
 
     bool STMT_LIST() {
-        if (debug) cout << "STMT_LIST -> STATEMENT STMT_LIST_REST" << endl;
-        cout << endl;
-        if (STATEMENT()) {
+        printDebug("STMT_LIST -> STATEMENT STMT_LIST_REST");
         /* STMT_LIST -> STATEMENT STMT_LIST_REST */
+        if (STATEMENT()) {
             if (STMT_LIST_REST()) {
                 return true;
             }
@@ -742,66 +806,86 @@ private:
     };
 
     bool STMT_LIST_REST() {
-        if (debug) cout << "STMT_LIST_REST -> STATEMENT STMT_LIST_REST" << endl;
-        if (debug) cout << "STMT_LIST_REST -> EOP" << endl;
-        cout << endl;
-        if (STATEMENT()) {
+        printDebug("STMT_LIST_REST -> STATEMENT STMT_LIST_REST");
         /* STMT_LIST_REST -> STATEMENT STMT_LIST_REST */
+        if (STATEMENT()) {
             if (STMT_LIST_REST()) {
                 return true;
             }
-        } else if (EOP()) {
+        } else {
+            
+            printDebug("STMT_LIST_REST -> EOP");
         /* STMT_LIST_REST -> EOP */
-            return true;
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool STATEMENT() {
-        if (debug) cout << "STATEMENT -> VAR_DECL" << endl;
-        if (debug) cout << "STATEMENT -> IF_STMT" << endl;
-        if (debug) cout << "STATEMENT -> FOR_STMT" << endl;
-        if (debug) cout << "STATEMENT -> RETURN_STMT" << endl;
-        if (debug) cout << "STATEMENT -> EXPR_STMT" << endl;
-        if (debug) cout << "STATEMENT -> PRINT_STMT" << endl;
-        if (debug) cout << "STATEMENT -> { STMT_LIST }" << endl;
-        cout << endl;
-        if (VAR_DECL()) {
-        /* STATEMENT -> VAR_DECL */
-            return true;
-        } else if (IF_STMT()) {
+        /* STATEMENT -> FUNCTIONVAR_DECL */
+        printDebug("STATEMENT -> FUNCTION VAR_DECL");
+        if (FUNCTION()) {
+            if (VAR_DECL()) {
+                return true;
+            }
+        } else {
+            
+            printDebug("STATEMENT -> IF_STMT");
         /* STATEMENT -> IF_STMT */
-            return true;
-        } else if (FOR_STMT()) {
+            if (IF_STMT()) {
+                return true;
+            } else {
+                
+                printDebug("STATEMENT -> FOR_STMT");
         /* STATEMENT -> FOR_STMT */
-            return true;
-        } else if (RETURN_STMT()) {
-        /* STATEMENT -> RETURN_STMT */
-            return true;
-        } else if (EXPR_STMT()) {
-        /* STATEMENT -> EXPR_STMT */
-            return true;
-        } else if (PRINT_STMT()) {
-        /* STATEMENT -> PRINT_STMT */
-            return true;
-        } else if (checkToken("{")) {
-        /* STATEMENT -> { STMT_LIST } */
-            goNextToken();
-            if (STMT_LIST()) {
-                if (checkToken("}")) {
-                    goNextToken();
+                if (FOR_STMT()) {
                     return true;
-                }
+                } else {
+                    
+                    printDebug("STATEMENT -> RETURN_STMT");
+        /* STATEMENT -> RETURN_STMT */
+                    if (RETURN_STMT()) {
+                        return true;
+                    } else {
+                        
+                        printDebug("STATEMENT -> EXPR_STMT");
+        /* STATEMENT -> EXPR_STMT */
+                        if (EXPR_STMT()) {
+                            return true;
+                        } else {
+                            
+                            printDebug("STATEMENT -> PRINT_STMT");
+        /* STATEMENT -> PRINT_STMT */
+                            if (PRINT_STMT()) {
+                                return true;
+                            } else {
+                                
+                                printDebug("{ STMT_LIST }");
+        /* STATEMENT -> { STMT_LIST } */
+                                if (checkToken("{")) {
+                                    goNextToken();
+                                    if (STMT_LIST()) {
+                                        if (checkToken("}")) {
+                                            goNextToken();
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } 
             }
         }
         return false;
     }
 
     bool IF_STMT() {
-        if (debug) cout << "IF_STMT -> if ( EXPRESSION ) { STATEMENT } IF_STMT_REST" << endl;
-        cout << endl;
-        if (checkToken("if")) {
+        printDebug("IF_STMT -> if ( EXPRESSION ) { STATEMENT } IF_STMT_REST");
         /* IF_STMT -> if ( EXPRESSION ) { STATEMENT } IF_STMT_REST */
+        if (checkToken("if")) {
             goNextToken();
             if (checkToken("(")) {
                 goNextToken();
@@ -811,9 +895,10 @@ private:
                         if (checkToken("{")) {
                             goNextToken();
                             if (STATEMENT()) {
+                                cout << get<1>(tokens[index]) << "------------" << endl;                                 
                                 if (checkToken("}")) {
                                     goNextToken();
-                                    if (STATEMENT()) {
+                                    if (IF_STMT_REST()) {
                                         return true;
                                     }
                                 }
@@ -827,11 +912,9 @@ private:
     }
 
     bool IF_STMT_REST() {
-        if (debug) cout << "IF_STMT_REST -> else { STATEMENT }" << endl;
-        if (debug) cout << "IF_STMT_REST -> EOP" << endl;
-        cout << endl;
-        if (checkToken("else")) {
+        printDebug("IF_STMT_REST -> else { STATEMENT }");
         /* IF_STMT_REST -> else { STATEMENT } */
+        if (checkToken("else")) {
             goNextToken();
             if (checkToken("{")) {
                 goNextToken();
@@ -841,18 +924,21 @@ private:
                     }
                 }
             }
-        } else if (EOP()) {
-            /* IF_STMT_REST -> EOP */
-            return true;
+        } else {
+            
+            printDebug("IF_STMT_REST -> EOP");
+        /* IF_STMT_REST -> EOP */
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool FOR_STMT() {
-        if (debug) cout << "FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STATEMENT }" << endl;
-        cout << endl;
-        if (checkToken("for")) {
+        printDebug("FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STATEMENT }");
         /* FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STATEMENT } */
+        if (checkToken("for")) {
             goNextToken();
             if (checkToken("(")) {
                 goNextToken();
@@ -883,13 +969,13 @@ private:
     }
 
     bool RETURN_STMT() {
-        if (debug) cout << "RETURN_STMT -> return EXPRESSION ;" << endl;
-        cout << endl;
-        if (checkToken("return")) {
+        printDebug("RETURN_STMT -> return EXPRESSION ;");
         /* RETURN_STMT -> return EXPRESSION ; */
+        if (checkToken("return")) {
             goNextToken();
             if (EXPRESSION()) {
                 if (checkToken(";")) {
+                    goNextToken();
                     return true;
                 }
             }
@@ -898,10 +984,9 @@ private:
     }
 
     bool PRINT_STMT() {
-        if (debug) cout << "PRINT_STMT -> print ( EXPR_LIST ) ;" << endl;
-        cout << endl;
-        if (checkToken("print")) {
+        printDebug("PRINT_STMT -> print ( EXPR_LIST ) ;");
         /* PRINT_STMT -> print ( EXPR_LIST ) ; */
+        if (checkToken("print")) {
             goNextToken();
             if (checkToken("(")) {
                 goNextToken();
@@ -920,30 +1005,29 @@ private:
     }
 
     bool EXPR_STMT() {
-        if (debug) cout << "EXPR_STMT -> EXPRESSION ;" << endl;
-        if (debug) cout << "EXPR_STMT -> ;" << endl;
-        cout << endl;
-        if (EXPRESSION()) {
+        printDebug("EXPR_STMT -> EXPRESSION ;");
         /* EXPR_STMT -> EXPRESSION ; */
+        if (EXPRESSION()) {
             if (checkToken(";")) {
                 goNextToken();
                 return true;
             }
-        } else if (checkToken(";")) {
-        /* EXPR_STMT -> ; */
-            goNextToken();
-            return true;
+        } else {
+            
+            printDebug("EXPR_STMT -> ;");
+            /* EXPR_STMT -> ; */
+            if (checkToken(";")) {
+                goNextToken();
+                return true;
+            }
         }
         return false;
     }
 
     bool EXPR_LIST() {
-        if (debug) cout << "EXPR_LIST -> EXPRESSION EXPR_LIST_REST" << endl;
-        if (debug) cout << "EXPR_LIST_REST -> , EXPR_LIST" << endl;
-        if (debug) cout << "EXPR_LIST_REST -> EOP" << endl;
-        cout << endl;
-        if (EXPRESSION()) {
+        printDebug("EXPR_LIST -> EXPRESSION EXPR_LIST_REST");
         /* EXPR_LIST -> EXPRESSION EXPR_LIST_REST */
+        if (EXPRESSION()) {
             if (EXPR_LIST_REST()) {
                 return true;
             }
@@ -952,43 +1036,59 @@ private:
     }
 
     bool EXPR_LIST_REST() {
-        if (checkToken(",")) {
+        printDebug("EXPR_LIST_REST -> , EXPR_LIST");
         /* EXPR_LIST_REST -> , EXPR_LIST */
+        if (checkToken(",")) {
             goNextToken();
             if (EXPR_LIST()) {
                 return true;
             }
-        } else if (EOP()) {
+        } else {
+            
+            printDebug("EXPR_LIST_REST -> EOP");
         /* EXPR_LIST_REST -> EOP */
-            return true;
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool EXPRESSION() {
-        if (debug) cout << "EXPRESSION -> IDENTIFIER = EXPRESSION" << endl;
-        if (debug) cout << "EXPRESSION -> OR_EXPR" << endl;
-        cout << endl;
-        if (IDENTIFIER()) {
+        printDebug("EXPRESSION -> IDENTIFIER = EXPRESSION");
         /* EXPRESSION -> IDENTIFIER = EXPRESSION */
+        bool flag = false;
+        int state = index;
+        if (IDENTIFIER()) {
             if (checkToken("=")) {
                 goNextToken();
                 if (EXPRESSION()) {
                     return true;
+                } else {
+                    flag = true;
                 }
+            } else {
+                flag = true;
             }
-        } else if (OR_EXPR()) {
+        } else {
+            flag = true;
+        }
+        if (flag) {
+            index = state;
+            
+            printDebug("EXPRESSION -> OR_EXPR");
         /* EXPRESSION -> OR_EXPR */
-            return true;
+            if (OR_EXPR()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool OR_EXPR() {
-        if (debug) cout << "OR_EXPR -> AND_EXPR OR_EXPR_REST" << endl;
-        cout << endl;
-        if (AND_EXPR()) {
+        printDebug("OR_EXPR -> AND_EXPR OR_EXPR_REST");
         /* OR_EXPR -> AND_EXPR OR_EXPR_REST */
+        if (AND_EXPR()) {
             if (OR_EXPR_REST()) {
                 return true;
             }
@@ -997,61 +1097,63 @@ private:
     }
 
     bool OR_EXPR_REST() {
-        if (debug) cout << "OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST" << endl;
-        if (debug) cout << "OR_EXPR_REST -> EOP" << endl;
-        cout << endl;
-        if (checkToken("||")) {
+        printDebug("OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST");
         /* OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST */
+        if (checkToken("||")) {
             goNextToken();
             if (AND_EXPR()) {
                 if (OR_EXPR_REST()) {
                     return true;
                 }
             }
-        } else if (EOP()) {
+        } else {
+            
+            printDebug("OR_EXPR_REST -> EOP");
         /* OR_EXPR_REST -> EOP */
-            return true;
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool AND_EXPR() {
-        if (debug) cout << "AND_EXPR -> EQ_EXPR AND_EXPR_REST" << endl;
-        cout << endl;
-        if (EQ_EXPR()) {
+        printDebug("AND_EXPR -> EQ_EXPR AND_EXPR_REST");
         /* AND_EXPR -> EQ_EXPR AND_EXPR_REST */
+        if (EQ_EXPR()) {
             if (AND_EXPR_REST()) {
                 return true;
             }
         }
         return false;
     }
-    
+
     bool AND_EXPR_REST() {
-        if (debug) cout << "AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST" << endl;
-        if (debug) cout << "AND_EXPR_REST -> EOP" << endl;
-        cout << endl;
-        if (checkToken("&&")) {
+        printDebug("AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST");
         /* AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST */
+        if (checkToken("&&")) {
             goNextToken();
             if (EQ_EXPR()) {
                 if (AND_EXPR_REST()) {
                     return true;
                 }
             }
-        } else if (EOP()) {
+        } else {
+            
+            printDebug("AND_EXPR_REST -> EOP");
         /* AND_EXPR_REST -> EOP */
-            return true;
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool EQ_EXPR() {
-        if (debug) cout << "EQ_EXPR -> REL_EXPR EQ_EXPR_REST" << endl;
-        cout << endl;
+        printDebug("EQ_EXPR -> REL_EXPR EQ_EXPR_REST_REST");
+        /* EQ_EXPR -> EXPR EQ_EXPR_REST_REST */
         if (REL_EXPR()) {
-        /* EQ_EXPR -> REL_EXPR EQ_EXPR_REST */
-            if (EQ_EXPR_REST()) {
+            if (EQ_EXPR_REST_REST()) {
                 return true;
             }
         }
@@ -1059,39 +1161,53 @@ private:
     }
 
     bool EQ_EXPR_REST() {
-        if (debug) cout << "EQ_EXPR_REST -> == REL_EXPR EQ_EXPR_REST" << endl;
-        if (debug) cout << "EQ_EXPR_REST -> != REL_EXPR EQ_EXPR_REST" << endl;
-        if (debug) cout << "EQ_EXPR_REST -> EOP" << endl;
-        cout << endl;
+        printDebug("EQ_EXPR_REST -> == REL_EXPR");
+        /* EQ_EXPR_REST -> == REL_EXPR*/
         if (checkToken("==")) {
-        /* EQ_EXPR_REST -> == REL_EXPR EQ_EXPR_REST */
             goNextToken();
             if (REL_EXPR()) {
                 if (EQ_EXPR_REST()) {
                     return true;
                 }
             }
-        } else if (checkToken("!=")) {
-        /* EQ_EXPR_REST -> != REL_EXPR EQ_EXPR_REST */  
-            goNextToken();
-            if (REL_EXPR()) {
-                if (EQ_EXPR_REST()) {
+        } else {
+            
+            printDebug("EQ_EXPR_REST -> != REL_EXPR");
+        /* EQ_EXPR_REST -> != REL_EXPR*/
+            if (checkToken("!=")) {
+                goNextToken();
+                if (REL_EXPR()) {
                     return true;
                 }
             }
-        } else if (EOP()) {
-        /* EQ_EXPR_REST -> EOP */
-            return true;
+        }
+        return false;
+    }
+
+    bool EQ_EXPR_REST_REST() {
+        printDebug("EQ_EXPRT_REST_REST -> EQ_EXPR_REST EQ_EXPR_REST_REST");
+        /* EQ_EXPR_REST_REST -> EQ_EXPR_REST EQ_EXPR_REST_REST */
+        if (EQ_EXPR_REST()) {
+            if (EQ_EXPR_REST_REST()) {
+                return true;
+            }
+        }
+        else {
+            
+            printDebug("EQ_EXPR_REST_REST -> EOP");
+        /* EQ_EXPR_REST_REST -> EOP */
+            if (EOP()) {
+                return true;
+            }
         }
         return false;
     }
 
     bool REL_EXPR() {
-        if (debug) cout << "REL_EXPR -> TERM REL_EXPR_REST" << endl;
-        cout << endl;
-        if (TERM()) {
-        /* REL_EXPR -> TERM REL_EXPR_REST */
-            if (REL_EXPR_REST()) {
+        printDebug("REL_EXPR -> EXPR REL_EXPR_REST_REST");
+        /* REL_EXPR -> EXPR REL_EXPR_REST_REST */
+        if (EXPR()) {
+            if (REL_EXPR_REST_REST()) {
                 return true;
             }
         }
@@ -1099,51 +1215,123 @@ private:
     }
 
     bool REL_EXPR_REST() {
-        if (debug) cout << "REL_EXPR_REST -> < TERM REL_EXPR_REST" << endl;
-        if (debug) cout << "REL_EXPR_REST -> > TERM REL_EXPR_REST" << endl;
-        if (debug) cout << "REL_EXPR_REST -> <= TERM REL_EXPR_REST" << endl;
-        if (debug) cout << "REL_EXPR_REST -> >= TERM REL_EXPR_REST" << endl;
-        cout << endl;
+        printDebug("REL_EXPR_REST -> < EXPR");
+        /* REL_EXPR_REST -> < EXPR */
         if (checkToken("<")) {
-        /* REL_EXPR_REST -> < TERM REL_EXPR_REST */   
+            goNextToken();
+            if (EXPR()) {
+                return true;
+            }
+        } else {
+            
+            printDebug("REL_EXPR_REST -> > EXPR");
+        /* REL_EXPR_REST -> > EXPR */
+            if (checkToken(">")) {
+                goNextToken();
+                if (EXPR()) {
+                    return true;
+                }
+            } else {
+                
+                printDebug("REL_EXPR_REST -> <= EXPR");
+        /* REL_EXPR_REST -> <= EXPR */
+                if (checkToken("<=")) {
+                    goNextToken();
+                    if (EXPR()) {
+                        return true;
+                    }
+                } else {
+                    
+                    printDebug("REL_EXPR_REST -> >= EXPR");
+        /* REL_EXPR_REST -> >= EXPR */
+                    if (checkToken(">=")) {
+                        goNextToken();
+                        if (EXPR()) {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    bool REL_EXPR_REST_REST() {
+        printDebug("REL_EXPR_REST_REST -> REL_EXPR_REST REL_EXPR_REST_REST");
+        /* REL_EXPR_REST_REST -> REL_EXPR_REST REL_EXPR_REST_REST */
+        if (REL_EXPR_REST()) {
+            if (REL_EXPR_REST_REST()) {
+                return true;
+            }
+        }
+        else {
+            
+            printDebug("REL_EXPR_REST_REST -> EOP");
+        /* EXPR_REST_REST -> EOP */
+            if (EOP()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool EXPR() {
+        printDebug("EXPR -> TERM EXPR_REST_REST");
+        /* EXPR -> TERM EXPR_REST_REST */
+        if (TERM()) {
+            if (EXPR_REST_REST()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool EXPR_REST() {
+        printDebug("EXPR_REST -> + TERM");
+        /* EXPR_REST -> + TERM */
+        if (checkToken("+")) {
+            goNextToken();
             if (TERM()) {
-                if (REL_EXPR_REST()) {
+                return true;
+            }
+        }
+        else {
+            
+            printDebug("EXPR_REST -> - TERM");
+            if (checkToken("-")) {
+                goNextToken(); 
+                if (TERM()) {
                     return true;
                 }
             }
-        } else if (checkToken(">")) {
-        /* REL_EXPR_REST -> > TERM REL_EXPR_REST */
-            if (TERM()) {
-                if (REL_EXPR_REST()) {
-                    return true;
-                }
+        }
+        return false;
+    }
+
+    bool EXPR_REST_REST() {
+        printDebug("EXPR_REST_REST -> EXPR_REST EXPR_REST_REST");
+        /* EXPR_REST_REST -> EXPR_REST EXPR_REST_REST */
+        if (EXPR_REST()) {
+            if (EXPR_REST_REST()) {
+                return true;
             }
-        } else if (checkToken("<=")) {
-        /* REL_EXPR_REST -> <= TERM REL_EXPR_REST */
-            if (TERM()) {
-                if (REL_EXPR_REST()) {
-                    return true;
-                }
+        }
+        else {
+            
+            printDebug("EXPR_REST_REST -> EOP");
+        /* EXPR_REST_REST -> EOP */
+            if (EOP()) {
+                return true;
             }
-        } else if (checkToken(">=")) {
-        /* REL_EXPR_REST -> >= TERM REL_EXPR_REST */
-            if (TERM()) {
-                if (REL_EXPR_REST()) {
-                    return true;
-                }
-            }
-        } else if (EOP()) {
-            return true;
         }
         return false;
     }
 
     bool TERM() {
-        if (debug) cout << "TERM -> UNARY TERM_REST" << endl;
-        cout << endl;
+        printDebug("TERM -> UNARY TERM_REST_REST");
+        /* TERM -> UNARY TERM_REST_REST */
         if (UNARY()) {
-        /* TERM -> UNARY TERM_REST */
-            if (TERM_REST()) {
+            if (TERM_REST_REST()) {
                 return true;
             }
         }
@@ -1151,103 +1339,29 @@ private:
     }
 
     bool TERM_REST() {
-        if (debug) cout << "TERM_REST -> * UNARY TERM_REST" << endl;
-        if (debug) cout << "TERM_REST -> / UNARY TERM_REST" << endl;
-        if (debug) cout << "TERM_REST -> % UNARY TERM_REST" << endl;
+        printDebug("TERM_REST -> * UNARY");
+        /* TERM_REST -> * UNARY */
         if (checkToken("*")) {
-        /* TERM_REST -> * UNARY TERM_REST */
             goNextToken();
             if (UNARY()) {
-                if (TERM_REST()) {
+                return true;
+            }
+        } else {
+            
+            printDebug("TERM_REST -> / UNARY");
+        /* TERM_REST -> / UNARY */
+            if (checkToken("/")) {
+                goNextToken();
+                if (UNARY()) {
                     return true;
                 }
-            }
-        } else if (checkToken("/")) {
-        /* TERM_REST -> / UNARY TERM_REST */
-            goNextToken();
-            if (UNARY()) {
-                if (TERM_REST()) {
-                    return true;
-                }
-            }
-        } else if (checkToken("%")) {
-        /* TERM_REST -> % UNARY TERM_REST */
-            goNextToken();
-            if (UNARY()) {
-                if (TERM_REST()) {
-                    return true;
-                }
-            }
-        } else if (EOP()) {
-            return true;
-        }
-        return false;
-    }
-
-    bool UNARY() {
-        if (debug) cout << "UNARY -> ! UNARY" << endl;
-        if (debug) cout << "UNARY -> - UNARY" << endl;
-        if (debug) cout << "UNARY -> FACTOR" << endl;
-        cout << endl;
-        if (checkToken("!")) {
-        /* UNARY -> ! UNARY */
-            goNextToken();
-            if (UNARY()) {
-                return true;
-            }
-        } else if (checkToken("-")) {
-        /* UNARY -> - UNARY */
-            goNextToken();
-            if (UNARY()) {
-                return true;
-            }
-        } else if (FACTOR()) {
-        /* UNARY -> FACTOR */
-            return true;
-        }
-        return false;
-    }
-
-    bool FACTOR() {
-        if (debug) cout << "FACTOR -> IDENTIFIER FACTOR_REST" << endl;
-        if (debug) cout << "FACTOR -> INT_LITERAL FACTOR_REST" << endl;
-        if (debug) cout << "FACTOR -> CHAR_LITERAL FACTOR_REST" << endl;
-        if (debug) cout << "FACTOR -> STRING_LITERAL FACTOR_REST" << endl;
-        if (debug) cout << "FACTOR -> BOOL_LITERAL FACTOR_REST" << endl;
-        if (debug) cout << "FACTOR -> ( EXPRESSION ) FACTOR_REST" << endl;
-        cout << endl;
-        if (IDENTIFIER()) {
-        /* FACTOR -> IDENTIFIER FACTOR_REST */
-            if (FACTOR_REST()) {
-                return true;
-            }
-        } else if (INT_LITERAL()) {
-        /* FACTOR -> INT_LITERAL FACTOR_REST */
-            if (FACTOR_REST()) {
-                return true;
-            }
-        } else if (CHAR_LITERAL()) {
-        /* FACTOR -> CHAR_LITERAL FACTOR_REST */
-            if (FACTOR_REST()) {
-                return true;
-            }
-        } else if (STRING_LITERAL()) {
-        /* FACTOR -> STRING_LITERAL FACTOR_REST */
-            if (FACTOR_REST()) {
-                return true;
-            }
-        } else if (BOOL_LITERAL()) {
-        /* FACTOR -> BOOL_LITERAL FACTOR_REST */
-            if (FACTOR_REST()) {
-                return true;
-            }
-        } else if (checkToken("(")) {
-        /* FACTOR -> ( EXPRESSION ) FACTOR_REST */
-            goNextToken();
-            if (EXPRESSION()) {
-                if (checkToken(")")) {
+            } else {
+                
+                printDebug("TERM_REST -> % UNARY");
+        /* TERM_REST -> % UNARY */
+                if (checkToken("%")) {
                     goNextToken();
-                    if (FACTOR_REST()) {
+                    if (UNARY()) {
                         return true;
                     }
                 }
@@ -1256,13 +1370,120 @@ private:
         return false;
     }
 
+    bool TERM_REST_REST() {
+        printDebug("TERM_REST_REST -> TERM_REST TERM_REST_REST");
+    /* TERM_REST_REST -> TERM_REST TERM_REST_REST */
+        if (TERM_REST()) {
+            if (TERM_REST_REST()) {
+                return true;
+            }
+        }
+        else {
+            
+            printDebug("TERM_REST_REST -> EOP");
+        /* TERM_REST_REST -> EOP */
+            if (EOP()) {
+                return true;
+            }
+        } 
+        return false;  
+    }
+
+    bool UNARY() {
+        printDebug("UNARY -> ! UNARY");
+        /* UNARY -> ! UNARY */
+        if (checkToken("!")) {
+            goNextToken();
+            if (UNARY()) {
+                return true;
+            }
+        } else {
+            
+            printDebug("UNARY -> - UNARY");
+        /* UNARY -> - UNARY */
+            if (checkToken("-")) {
+                goNextToken();
+                if (UNARY()) {
+                    return true;
+                }
+            } else {
+                
+                printDebug("UNARY -> FACTOR");
+        /* UNARY -> FACTOR */
+                if (FACTOR()) {
+                    return true;
+                }
+            }
+        } 
+        return false;
+    }
+
+    bool FACTOR() {
+        printDebug("FACTOR -> IDENTIFIER FACTOR_REST");
+        /* FACTOR -> IDENTIFIER FACTOR_REST */
+        if (IDENTIFIER()) {
+            if (FACTOR_REST()) {
+                return true;
+            }
+        } else {
+            
+            printDebug("FACTOR -> INT_LITERAL FACTOR_REST");
+        /* FACTOR -> INT_LITERAL FACTOR_REST */
+            if (INT_LITERAL()) {
+                if (FACTOR_REST()) {
+                    return true;
+                }
+            } else {
+                
+                printDebug("FACTOR -> CHAR_LITERAL FACTOR_REST");
+        /* FACTOR -> CHAR_LITERAL FACTOR_REST */
+                if (CHAR_LITERAL()) {
+                    if (FACTOR_REST()) {
+                        return true;
+                    }
+                } else {
+                    
+                    printDebug("FACTOR -> STRING_LITERAL FACTOR_REST");
+        /* FACTOR -> STRING_LITERAL FACTOR_REST */
+                    if (STRING_LITERAL()) {
+                        if (FACTOR_REST()) {
+                            return true;
+                        }
+                    } else {
+                        
+                        printDebug("FACTOR -> BOOL_LITERAL FACTOR_REST");
+        /* FACTOR -> BOOL_LITERAL FACTOR_REST */
+                        if (BOOL_LITERAL()) {
+                            if (FACTOR_REST()) {
+                                return true;
+                            }
+                        } else {
+                            
+                            printDebug("FACTOR -> ( EXPRESSION ) FACTOR_REST");
+        /* FACTOR -> ( EXPRESSION ) FACTOR_REST */
+                            if (checkToken("(")) {
+                                goNextToken();
+                                if (EXPRESSION()) {
+                                    if (checkToken(")")) {
+                                        goNextToken();
+                                        if (FACTOR_REST()) {
+                                            return true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
     bool FACTOR_REST() {
-        if (debug) cout << "FACTOR_REST -> [ EXPRESSION ] FACTOR_REST" << endl;
-        if (debug) cout << "FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST" << endl;
-        if (debug) cout << "FACTOR_REST -> EOP" << endl;
-        cout << endl;
-        if (checkToken("[")) {
+        printDebug("FACTOR_REST -> [ EXPRESSION ] FACTOR_REST");
         /* FACTOR_REST -> [ EXPRESSION ] FACTOR_REST */
+        if (checkToken("[")) {
             goNextToken();
             if (EXPRESSION()) {
                 if (checkToken("]")) {
@@ -1272,123 +1493,50 @@ private:
                     }
                 }
             }
-        } else if (checkToken("(")) {
+        } else {
+            
+            printDebug("FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST");
         /* FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST */
-            goNextToken();
-            if (EXPR_LIST()) {
-                if (checkToken(")")) {
-                    goNextToken();
-                    if (FACTOR_REST()) {
-                        return true;
+            if (checkToken("(")) {
+                goNextToken();
+                if (EXPR_LIST()) {
+                    if (checkToken(")")) {
+                        goNextToken();
+                        if (FACTOR_REST()) {
+                            return true;
+                        }
                     }
                 }
-            }
-        } else if (EOP()) {
+            } else {
+                
+                printDebug("FACTOR_REST -> EOP");
+                if (EOP()) {
+                    return true;
+                }
         /* FACTOR_REST -> EOP */
-            return true;
+            }
         }
         return false;
     }
 
     bool EOP() {
-        /* EOP -> '' */
         return true;
     }
 
     bool IDENTIFIER() {
-        if (debug) cout << "IDENTIFIER -> LETTER IDENTIFIER_REST" << endl;
-        if (debug) cout << "IDENTIFIER -> _ IDENTIFIER_REST" << endl;
-        cout << endl;
-        if (LETTER()) {
-        /* IDENTIFIER -> LETTER IDENTIFIER_REST */
-            if (IDENTIFIER_REST()) {
-                goNextToken();
-                return true;
-            }
-        } else if (checkToken("_")) {
-        /* IDENTIFIER -> _ IDENTIFIER_REST */
-            cursor++;
-            if (IDENTIFIER_REST()) {
-                goNextToken();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool IDENTIFIER_REST() {
-        if (debug) cout << "IDENTIFIER_REST -> LETTER IDENTIFIER_REST" << endl;
-        if (debug) cout << "IDENTIFIER_REST -> DIGIT IDENTIFIER_REST" << endl;
-        if (debug) cout << "IDENTIFIER_REST -> _ IDENTIFIER_REST" << endl;
-        if (debug) cout << "IDENTIFIER_REST -> EOP" << endl;
-        cout << endl;
-        if (LETTER()) {
-        /* IDENTIFIER_REST -> LETTER IDENTIFIER_REST */
-            if (IDENTIFIER_REST()) {
-                return true;
-            }
-        } else if (DIGIT()) {
-        /* IDENTIFIER_REST -> DIGIT IDENTIFIER_REST */
-            if (IDENTIFIER_REST()) {
-                return true;
-            }
-        } else if (checkToken("_")) {
-        /* IDENTIFIER_REST -> _ IDENTIFIER_REST */
-            cursor++;
-            if (IDENTIFIER_REST()) {
-                return true;
-            }
-        } else if (EOP()) {
-        /* IDENTIFIER_REST -> EOP */
+        printDebug("IDENTIFIER -> <Check Token Type>");
+        /* IDENTIFIER -> <Check Token Type> */
+        if (checkTokenType("IDENTIFIER")) {
+            goNextToken();
             return true;
-        }
-        return false;
-    }
-
-    bool LETTER() {
-        if (debug) cout << "LETTER -> a | b | c | ... | z | A | B | C | ... | Z" << endl;
-        cout << endl;
-        if ((*cursor >= 'a' && *cursor <= 'z') || (*cursor >= 'A' && *cursor <= 'Z')) {
-        /* LETTER -> a | b | c | ... | z | A | B | C | ... | Z */
-            cursor++;
-            cout << "l" << endl;
-            return true;
-        }
-        return false;
-    }
-
-    bool DIGIT() {
-        if (debug) cout << "DIGIT -> 0 | 1 | 2 | ... | 9" << endl;
-        cout << endl;
-        if (*cursor >= '0' && *cursor <= '9') {
-        /* DIGIT -> 0 | 1 | 2 | ... | 9 */
-            cout << "d" << endl;
-            cursor++;
-            return true;
-        }
-        return false;
-    }
-
-    bool SYMBOL() {
-        if (debug) cout << "SYMBOL -> ! | \" | # | $ | % | & | ' | ( | ) | * | + | , | - | . | / | : | ; | < | = | > | ? | @ | [ | \\ | ] | ^ | _ | ` | { | | | | }" << endl;
-        cout << endl;
-        const char* symbols = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
-        for (const char* s = symbols; *s != '\0'; s++) {
-            if (*cursor == *s) {
-        /* SYMBOL -> ! | " | # | $ | % | & | ' | ( | ) | * | + | , | - | . | / | : | ; | < | = | > | ? | @ | [ | \ | ] | ^ | _ | ` | { | | | | } */
-                cout << "s" << endl;
-                cursor++;
-                return true;
-            }
         }
         return false;
     }
 
     bool INT_TYPE() {
-        if (debug) cout << "INT_TYPE -> int" << endl;
-        cout << endl;
+        printDebug("INT_TYPE -> integer");
+        /* INT_TYPE -> integer */
         if (checkToken("integer")) {
-        /* INT_TYPE -> int */
             goNextToken();
             return true;
         }
@@ -1396,10 +1544,9 @@ private:
     }
 
     bool BOOL_TYPE() {
-        if (debug) cout << "BOOL_TYPE -> bool" << endl;
-        cout << endl;
+        printDebug("BOOL_TYPE -> boolean");
+        /* BOOL_TYPE -> boolean */
         if (checkToken("boolean")) {
-        /* BOOL_TYPE -> bool */
             goNextToken();
             return true;
         }
@@ -1407,10 +1554,9 @@ private:
     }
 
     bool CHAR_TYPE() {
-        if (debug) cout << "CHAR_TYPE -> char" << endl;
-        cout << endl;
-        if (checkToken("char")) {
+        printDebug("CHAR_TYPE -> char");
         /* CHAR_TYPE -> char */
+        if (checkToken("char")) {
             goNextToken();
             return true;
         }
@@ -1418,10 +1564,9 @@ private:
     }
 
     bool STRING_TYPE() {
-        if (debug) cout << "STRING_TYPE -> string" << endl;
-        cout << endl;
-        if (checkToken("string")) {
+        printDebug("STRING_TYPE -> string");
         /* STRING_TYPE -> string */
+        if (checkToken("string")) {
             goNextToken();
             return true;
         }
@@ -1429,10 +1574,9 @@ private:
     }
 
     bool VOID_TYPE() {
-        if (debug) cout << "VOID_TYPE -> void" << endl;
-        cout << endl;
-        if (checkToken("void")) {
+        printDebug("VOID_TYPE -> void");
         /* VOID_TYPE -> void */
+        if (checkToken("void")) {
             goNextToken();
             return true;
         }
@@ -1440,88 +1584,38 @@ private:
     }
 
     bool INT_LITERAL() {
-        if (debug) cout << "INT_LITERAL -> DIGIT INT_LITERAL_REST" << endl;
-        cout << endl;
-        if (DIGIT()) {
-        /* INT_LITERAL -> DIGIT INT_LITERAL_REST */
-            if (INT_LITERAL_REST()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool INT_LITERAL_REST() {
-        if (debug) cout << "INT_LITERAL_REST -> DIGIT INT_LITERAL_REST" << endl;
-        if (debug) cout << "INT_LITERAL_REST -> EOP" << endl;
-        cout << endl;
-        if (DIGIT()) {
-        /* INT_LITERAL_REST -> DIGIT INT_LITERAL_REST */
-            if (INT_LITERAL_REST()) {
-                return true;
-            }
-        } else if (EOP()) {
-        /* INT_LITERAL_REST -> EOP */
+        printDebug("INT_LITERAL -> <Check Token Type>");
+        /* INT_LITERAL -> <Check Token Type> */
+        if (checkTokenType("INTEGER")) {
+            goNextToken();
             return true;
         }
         return false;
     }
 
     bool CHAR_LITERAL() {
-        if (debug) cout << "CHAR_LITERAL -> ' CHAR_LITERAL_REST '" << endl;
-        if (debug) cout << "CHAR_LITERAL -> EOP" << endl;
-        cout << endl;
-        if (checkToken("\'")) {
-        /* CHAR_LITERAL -> ' CHAR_LITERAL_REST ' */
+        printDebug("CHAR_LITERAL -> ' <Check Token Type> '");
+        /* CHAR_LITERAL -> ' <Check Token Type> ' */
+        if (checkToken("'")) {
             goNextToken();
-            if (CHAR_LITERAL_REST()) {
+            if (checkTokenType("CHAR")) {
+                goNextToken();
                 if (checkToken("'")) {
                     goNextToken();
                     return true;
                 }
             }
-        } else if (EOP()) {
-        /* CHAR_LITERAL -> EOP */
-            return true;
-        }
-        return false;
-    }
-
-    bool CHAR_LITERAL_REST() {
-        if (debug) cout << "CHAR_LITERAL_REST -> DIGIT" << endl;
-        if (debug) cout << "CHAR_LITERAL_REST -> LETTER" << endl;
-        if (debug) cout << "CHAR_LITERAL_REST -> SYMBOL" << endl;
-        if (debug) cout << "CHAR_LITERAL_REST -> EOP" << endl;
-        cout << endl;
-        if (DIGIT()) {
-        /* CHAR_LITERAL_REST -> DIGIT */
-            if (CHAR_LITERAL_REST()) {
-                return true;
-            }
-        } else if (LETTER()) {
-        /* CHAR_LITERAL_REST -> LETTER */
-            if (CHAR_LITERAL_REST()) {
-                return true;
-            }
-        } else if (SYMBOL()) {
-        /* CHAR_LITERAL_REST -> SYMBOL */
-            if (CHAR_LITERAL_REST()) {
-                return true;
-            }
-        } else if (EOP()) {
-        /* CHAR_LITERAL_REST -> EOP */
-            return true;
         }
         return false;
     }
 
     bool STRING_LITERAL() {
-        if (debug) cout << "STRING_LITERAL -> \" STRING_LITERAL_REST \"" << endl;
-        cout << endl;
+        printDebug("STRING_LITERAL -> \" <Check Token Type> \"");
+        /* STRING_LITERAL -> " <Check Token Type> " */
         if (checkToken("\"")) {
-        /* STRING_LITERAL -> " STRING_LITERAL_REST " */
             goNextToken();
-            if (STRING_LITERAL_REST()) {
+            if (checkTokenType("STRING")) {
+                goNextToken();
                 if (checkToken("\"")) {
                     goNextToken();
                     return true;
@@ -1531,34 +1625,19 @@ private:
         return false;
     }
 
-    bool STRING_LITERAL_REST() {
-        if (debug) cout << "STRING_LITERAL_REST -> CHAR_LITERAL_REST STRING_LITERAL_REST" << endl;
-        if (debug) cout << "STRING_LITERAL_REST -> EOP" << endl;
-        cout << endl;
-        if (CHAR_LITERAL_REST()) {
-        /* STRING_LITERAL_REST -> CHAR_LITERAL_REST STRING_LITERAL_REST */
-            if (STRING_LITERAL_REST()) {
+    bool BOOL_LITERAL() {
+        printDebug("BOOL_LITERAL -> true");
+        /* BOOL_LITERAL -> true */
+        if (checkToken("true")) {
+            goNextToken();
+            return true;
+        } else {
+            printDebug("BOOL_LITERAL -> false");
+        /* BOOL_LITERAL -> false */
+            if (checkToken("false")) {
+                goNextToken();
                 return true;
             }
-        } else if (EOP()) {
-        /* STRING_LITERAL_REST -> EOP */
-            return true;
-        }
-        return false;
-    }
-
-    bool BOOL_LITERAL() {
-        if (debug) cout << "BOOL_LITERAL -> true" << endl;
-        if (debug) cout << "BOOL_LITERAL -> false" << endl;
-        cout << endl;
-        if (checkToken("true")) {
-        /* BOOL_LITERAL -> true */
-            goNextToken();
-            return true;
-        } else if (checkToken("false")) {
-        /* BOOL_LITERAL -> false */
-            goNextToken();
-            return true;
         }
         return false;
     }
@@ -1567,13 +1646,13 @@ private:
 int main() {
     Scanner scanner;
 
-    vector<vector<char>> buffer = scanner.readBMMFile("input2.bmm");
+    vector<vector<char>> buffer = scanner.readBMMFile("input3.bmm");
 
-    // for (int i = 0; i < buffer.size(); i++) {
-    //     for (int j = 0; j < buffer[i].size(); j++) {
-    //         cout << buffer[i][j];
-    //     }
-    // }
+    for (int i = 0; i < buffer.size(); i++) {
+        for (int j = 0; j < buffer[i].size(); j++) {
+            cout << buffer[i][j];
+        }
+    }
 
     cout<<"------EMPEZANDO EL SCANNER..."<<endl;
     vector<tuple<string, string, int, int>> tokens = scanner.Tokenize(buffer);
@@ -1590,8 +1669,13 @@ int main() {
     else{
         cout<<"------SCANNER TERMINADO SIN ERRORES"<<endl;
     }
+    for (int i = 0; i < tokens.size(); i++) {
+        printf("Token: %-20s Value: %-20s Fila: %-20d Columna: %-20d\n", 
+       get<0>(tokens[i]).c_str(), get<1>(tokens[i]).c_str(), get<2>(tokens[i]) + 1, get<3>(tokens[i]) + 1);
+    }
+
     
-    Parser parser(tokens, true);
+    Parser parser(tokens, false);
 
     return 0;
 }
