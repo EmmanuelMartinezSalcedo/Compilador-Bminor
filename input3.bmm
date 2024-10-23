@@ -18,6 +18,7 @@ char _Caracter = 'w';
 void printarray ( integer[] a, integer size ) {
 	integer i;
 	for( i=0;i<size;i=i+1;) {
+    print(a[i], "\n");
 		print(a[i], "\n");
 	}
 }
@@ -30,10 +31,12 @@ integer sum (integer a, integer b) {
 boolean isEven (integer a) {
   if (a % 2 == 0) {
     return true;
+    return true;
   }
 }
 
 string less (string a, string b) {
+  integer c = sum (-1, 2);
   if (a < b == true) {
     return "a less than b";
   }

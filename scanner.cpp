@@ -514,8 +514,8 @@ private:
             for (int i = 0; i < tab; i++) {
                 cout << ' ';
             }
+            cout << s << endl;
         }
-        cout << s << endl;
         //tab++;
     }
 
@@ -883,8 +883,8 @@ private:
     }
 
     bool IF_STMT() {
-        printDebug("IF_STMT -> if ( EXPRESSION ) { STATEMENT } IF_STMT_REST");
-        /* IF_STMT -> if ( EXPRESSION ) { STATEMENT } IF_STMT_REST */
+        printDebug("IF_STMT -> if ( EXPRESSION ) { STMT_LIST } IF_STMT_REST");
+        /* IF_STMT -> if ( EXPRESSION ) { STMT_LIST } IF_STMT_REST */
         if (checkToken("if")) {
             goNextToken();
             if (checkToken("(")) {
@@ -894,7 +894,7 @@ private:
                         goNextToken();
                         if (checkToken("{")) {
                             goNextToken();
-                            if (STATEMENT()) {
+                            if (STMT_LIST()) {
                                 cout << get<1>(tokens[index]) << "------------" << endl;                                 
                                 if (checkToken("}")) {
                                     goNextToken();
@@ -912,13 +912,13 @@ private:
     }
 
     bool IF_STMT_REST() {
-        printDebug("IF_STMT_REST -> else { STATEMENT }");
-        /* IF_STMT_REST -> else { STATEMENT } */
+        printDebug("IF_STMT_REST -> else { STMT_LIST }");
+        /* IF_STMT_REST -> else { STMT_LIST } */
         if (checkToken("else")) {
             goNextToken();
             if (checkToken("{")) {
                 goNextToken();
-                if (STATEMENT()) {
+                if (STMT_LIST()) {
                     if (checkToken("}")) {
                         return true;
                     }
@@ -936,8 +936,8 @@ private:
     }
 
     bool FOR_STMT() {
-        printDebug("FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STATEMENT }");
-        /* FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STATEMENT } */
+        printDebug("FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STMT_LIST }");
+        /* FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STMT_LIST } */
         if (checkToken("for")) {
             goNextToken();
             if (checkToken("(")) {
@@ -951,7 +951,7 @@ private:
                                     goNextToken();
                                     if (checkToken("{")) {
                                         goNextToken();
-                                        if (STATEMENT()) {
+                                        if (STMT_LIST()) {
                                             if (checkToken("}")) {
                                                 goNextToken();
                                                 return true;
