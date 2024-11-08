@@ -1957,7 +1957,8 @@ int main() {
      if (!errores.empty()) {
         cout << "------PARSER TERMINADO CON " << errores.size() << " ERRORES" << endl;
         for ( auto error : errores) {
-            cout << std::get<0, std::string>(error) << " '" << std::get<1, std::string>(error) << "' en fila "<< std::get<2, int>(error) << ", columna " << std::get<3, int>(error) << endl;
+            cout << error.message << " '" << error.token << "' en fila " 
+                 << error.line << ", columna " << error.column << endl;
 }
     } else {
         cout << "------PARSER TERMINADO SIN ERRORES" << endl;
