@@ -474,6 +474,8 @@ const set<string> keepNodes = {
     "RETURN_STMT", "PRINT_STMT", "VAR_DECL", "TYPE"
 };
 
+const set<string> groupingSymbols = {"(", ")", "{", "}", "[", "]"};
+
 string readCSVField(istream& str) {
     string result;
     bool inQuotes = false;
@@ -512,7 +514,7 @@ void generateAST(const string& inputFile, const string& outputFile) {
     ifstream inFile(inputFile);
     string line;
     map<int, Node> nodes;
-    
+
     getline(inFile, line);
     
     while (getline(inFile, line)) {
@@ -525,13 +527,16 @@ void generateAST(const string& inputFile, const string& outputFile) {
                 node.parentId = stoi(fields[1]);
                 node.value = fields[2];
                 node.type = fields[3];
-                
+
+                if (groupingSymbols.find(node.value) != groupingSymbols.end()) {
+                    continue;
+                }
+
                 node.includeInAST = node.type == "terminal" || 
                                   keepNodes.find(node.value) != keepNodes.end();
                 
                 nodes[node.id] = node;
                 
-                // Add child to parent's children list
                 if (node.parentId >= 0) {
                     nodes[node.parentId].children.push_back(node.id);
                 }
@@ -540,6 +545,7 @@ void generateAST(const string& inputFile, const string& outputFile) {
                 continue;
             }
         } else {
+            cerr << "Invalid line format: " << line << endl;
             continue;
         }
     }
@@ -554,6 +560,7 @@ void generateAST(const string& inputFile, const string& outputFile) {
         }
         return findNextParent(parent.id);
     };
+    
     ofstream outFile(outputFile);
     outFile << "ID,PadreID,Valor,Tipo\n";
     
