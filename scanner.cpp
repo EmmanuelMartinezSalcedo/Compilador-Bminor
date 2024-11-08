@@ -2228,7 +2228,7 @@ private:
 int main() {
     Scanner scanner;
 
-    vector<vector<char>> buffer = scanner.readBMMFile("input3.bmm");
+    vector<vector<char>> buffer = scanner.readBMMFile("input4.bmm");
 
     // for (int i = 0; i < buffer.size(); i++) {
     //     for (int j = 0; j < buffer[i].size(); j++) {

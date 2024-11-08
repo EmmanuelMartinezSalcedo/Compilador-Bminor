@@ -2,3 +2,14 @@ integer a = 12;
 char k = 'b';
 char k = 'x';
 char hola = ' ';
+
+void printarray ( integer[] a, integer size ) {
+	integer i;
+	for( i=0;i<size;i=i+1;) {
+    print(a[i], "\n");
+		print(a[i], "\n");
+    if (i == size-1) {
+      return 3;
+    }
+	}
+}
