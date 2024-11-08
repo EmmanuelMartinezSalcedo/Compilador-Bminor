@@ -8,6 +8,8 @@
 #include <tuple>
 #include <string.h>
 #include <string>
+#include "errorDetection.h"
+
 using namespace std;
 
 int mostrar_solo_errores = 0;
@@ -195,9 +197,9 @@ public:
             c = getchar(buffer, row, col);
             value += c;
 
-            // Revisar si es un carácter válido o un carácter de escape
+            // Revisar si es un caracter valido o un caracter de escape
             if (c == '\\') {
-                c = getchar(buffer, row, col); // Capturar el carácter escapado
+                c = getchar(buffer, row, col); // Capturar el caracter escapado
                 value += c;
             }
 
@@ -273,7 +275,7 @@ public:
             char next = peekchar(buffer, row, col);
             string potentialOp = op + next;
             if (isOperator(potentialOp)) {
-                getchar(buffer, row, col); // avanzar al siguiente carácter
+                getchar(buffer, row, col); // avanzar al siguiente caracter
                 if(potentialOp == "++")
                 {
                     return {"PLUSPLUS",potentialOp};
@@ -388,7 +390,7 @@ public:
             
         }
 
-        // Si el carácter es inválido, registrar error
+        // Si el caracter es invalido, registrar error
         errores_encontrados.push_back(tuple("Error: Caracter no valido: '",string(1,c),row+1,col+1));
         return {"ERROR", string(1, c)};
     }
@@ -457,6 +459,8 @@ public:
     int index;
     bool debug;
     int tab = 0;
+
+    ErrorDetection errorDetected;
 
     Parser(vector<tuple<string, string, int, int>>& tkns, bool dbg) {
         tokens = tkns;
@@ -531,6 +535,11 @@ private:
                 }
                 return true;
             }
+         else {
+                errorDetected.addError("Error: Se esperaba PROGRAM_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba DECLARATION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
         return false;
     }
@@ -541,6 +550,8 @@ private:
         if (DECLARATION()) {
             if (PROGRAM_REST()) {
                 return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba PROGRAM_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             
@@ -548,6 +559,8 @@ private:
         /* PROGRAM_REST -> EOP */
             if (EOP()) {
                 return true;
+            }else {
+                errorDetected.addError("Error: Se esperaba EOP", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         }
         return false;
@@ -560,6 +573,11 @@ private:
             if (DECLARATION_REST()) {
                 return true;
             }
+        else {
+                errorDetected.addError("Error: Se esperaba DECLARATION_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba FUNCTION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
         return false;
     }
@@ -578,17 +596,28 @@ private:
                             if (checkToken("}")) {
                                 goNextToken();
                                 return true;
+                            }else {
+                                errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
+                        } else {
+                            errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
+                    } else {
+                        errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
+                } else {
+                    errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
+            } else {
+                errorDetected.addError("Error: Se esperaba PARAMS", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            
             printDebug("DECLARATION_REST -> VAR_DECL");
         /* DECLARATION_REST -> VAR_DECL  */
-            if (VAR_DECL()) {
+            if (VAR_DECL()) { //No terminal
                 return true;
+            } else{
+                errorDetected.addError("Error: Se esperaba VAR_DECL", get<1>(tokens[index]), get<2>(tokens[index]),get<3>(tokens[index]));
             }
         }
         return false;
@@ -600,7 +629,11 @@ private:
         if (TYPE()) {
             if (IDENTIFIER()) {
                 return true;
+            } else{
+                errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]),get<3>(tokens[index]));
             }
+        } else{
+                errorDetected.addError("Error: Se esperaba TYPE", get<1>(tokens[index]), get<2>(tokens[index]),get<3>(tokens[index]));
         }
         return false;
     }
@@ -611,7 +644,9 @@ private:
         if (INT_TYPE()) {
             if (TYPE_REST()) {
                 return true;
-            }
+            } else {
+            errorDetected.addError("Error: Se esperaba TYPE_REST despues de INT_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
         } else {
             
             printDebug("TYPE -> BOOL_TYPE TYPE_REST");
@@ -619,40 +654,46 @@ private:
             if (BOOL_TYPE()) {
                 if (TYPE_REST()) {
                     return true;
-                }
+                } else {
+                errorDetected.addError("Error: Se esperaba TYPE_REST despues de BOOL_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
-            else {
+            } else {
                 
                 printDebug("TYPE -> CHAR_TYPE TYPE_REST");
         /* TYPE -> CHAR_TYPE TYPE_REST*/
                 if (CHAR_TYPE()) {
                     if (TYPE_REST()) {
                         return true;
-                    }
+                    }else {
+                    errorDetected.addError("Error: Se esperaba TYPE_REST despues de CHAR_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
-                else {
+                } else {
                     
                     printDebug("TYPE -> STRING_TYPE TYPE_REST");
         /* TYPE -> STRING_TYPE TYPE_REST*/
                     if (STRING_TYPE()) {
                         if (TYPE_REST()) {
                             return true;
-                        }
+                        }else {
+                        errorDetected.addError("Error: Se esperaba TYPE_REST despues de STRING_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
-                    else {
+                    } else {
                         
                         printDebug("TYPE -> VOID_TYPE TYPE_REST");
         /* TYPE -> VOID_TYPE TYPE_REST */
                         if (VOID_TYPE()) {
                             if (TYPE_REST()) {
-                                return true;
-                            }
+                                 return true;
+                        } else {
+                            errorDetected.addError("Error: Se esperaba TYPE_REST despues de VOID_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
-                    
+                    } else {
+                        errorDetected.addError("Error: Se esperaba un tipo valido (INT_TYPE, BOOL_TYPE, CHAR_TYPE, STRING_TYPE, VOID_TYPE)", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 }
             }
         }
+    }
         return false;
     }
 
@@ -665,222 +706,271 @@ private:
                 goNextToken();
                 if (TYPE_REST()) {
                     return true;
-                }
+                }else {
+                errorDetected.addError("Error: Se esperaba TYPE_REST después de '[]'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
+        } else {
+            errorDetected.addError("Error: Se esperaba ']' después de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
         } else {
             
             printDebug("TYPE_REST -> EOP");
         /* TYPE_REST -> EOP */
             if (EOP()) {
                 return true;
-            }
+            }else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
         }
         return false;
     }
 
     bool PARAMS() {
-        printDebug("PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
-        /* PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST*/
-        if (INT_TYPE()) {
+    printDebug("PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
+    /* PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
+    if (INT_TYPE()) {
+        if (TYPE_REST()) {
+            if (IDENTIFIER()) {
+                if (PARAMS_REST()) {
+                    return true;
+                } else {
+                    errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                }
+            } else {
+                errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba TYPE_REST después de INT_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
+        /* PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
+        if (BOOL_TYPE()) {
             if (TYPE_REST()) {
                 if (IDENTIFIER()) {
                     if (PARAMS_REST()) {
                         return true;
+                    } else {
+                        errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
+                } else {
+                    errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
+            } else {
+                errorDetected.addError("Error: Se esperaba TYPE_REST después de BOOL_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            
-            printDebug("PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
-        /* PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST*/
-            if (BOOL_TYPE()) {
+            printDebug("PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
+            /* PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
+            if (CHAR_TYPE()) {
                 if (TYPE_REST()) {
                     if (IDENTIFIER()) {
                         if (PARAMS_REST()) {
                             return true;
+                        } else {
+                            errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
+                    } else {
+                        errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
+                } else {
+                    errorDetected.addError("Error: Se esperaba TYPE_REST después de CHAR_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                
-                printDebug("PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
-        /* PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-                if (CHAR_TYPE()) {
+                printDebug("PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
+                /* PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
+                if (STRING_TYPE()) {
                     if (TYPE_REST()) {
                         if (IDENTIFIER()) {
                             if (PARAMS_REST()) {
                                 return true;
+                            } else {
+                                errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
+                        } else {
+                            errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
+                    } else {
+                        errorDetected.addError("Error: Se esperaba TYPE_REST después de STRING_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 } else {
-                    
-                    printDebug("PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
-        /* PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-                    if (STRING_TYPE()) {
+                    printDebug("PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
+                    /* PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
+                    if (VOID_TYPE()) {
                         if (TYPE_REST()) {
                             if (IDENTIFIER()) {
                                 if (PARAMS_REST()) {
                                     return true;
+                                } else {
+                                    errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                                 }
-                            }
-                        }
-                    } else {
-                        
-                        printDebug("PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
-        /* PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-                        if (VOID_TYPE()) {
-                            if (TYPE_REST()) {
-                                if (IDENTIFIER()) {
-                                    if (PARAMS_REST()) {
-                                        return true;
-                                    }
-                                }
+                            } else {
+                                errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
                         } else {
-                            
-                            printDebug("PARAMS -> EOP");
-        /* PARAMS -> EOP */
-                            if (EOP()) {
-                                return true;
-                            }
+                            errorDetected.addError("Error: Se esperaba TYPE_REST después de VOID_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
-                    }
-                }
-            }
-        } 
-        return false;
-    }
-
-    bool PARAMS_REST() {
-        printDebug("PARAMS_REST -> , PARAMS");
-        /* PARAMS_REST -> , PARAMS */
-        if (checkToken(",")) {
-            goNextToken();
-            if (PARAMS()) {
-                return true;
-            }
-        } else {
-            
-            printDebug("PARAMS_REST -> EOP");
-        /* PARAMS_REST -> EOP  */
-            if (EOP()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool VAR_DECL() {
-        printDebug("VAR_DECL -> ;");
-        /* VAR_DECL-> ; */
-        if (checkToken(";")) {
-            goNextToken();
-            return true;
-        } else  {
-            
-            printDebug("VAR_DECL -> = EXPRESSION ;");
-        /* VAR_DECL-> = EXPRESSION ; */
-            if (checkToken("=")) {
-                goNextToken();
-                if (EXPRESSION()) {
-                    if (checkToken(";")) {
-                        goNextToken();
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    bool STMT_LIST() {
-        printDebug("STMT_LIST -> STATEMENT STMT_LIST_REST");
-        /* STMT_LIST -> STATEMENT STMT_LIST_REST */
-        if (STATEMENT()) {
-            if (STMT_LIST_REST()) {
-                return true;
-            }
-        }
-        return false;
-    };
-
-    bool STMT_LIST_REST() {
-        printDebug("STMT_LIST_REST -> STATEMENT STMT_LIST_REST");
-        /* STMT_LIST_REST -> STATEMENT STMT_LIST_REST */
-        if (STATEMENT()) {
-            if (STMT_LIST_REST()) {
-                return true;
-            }
-        } else {
-            
-            printDebug("STMT_LIST_REST -> EOP");
-        /* STMT_LIST_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool STATEMENT() {
-        /* STATEMENT -> FUNCTIONVAR_DECL */
-        printDebug("STATEMENT -> FUNCTION VAR_DECL");
-        if (FUNCTION()) {
-            if (VAR_DECL()) {
-                return true;
-            }
-        } else {
-            
-            printDebug("STATEMENT -> IF_STMT");
-        /* STATEMENT -> IF_STMT */
-            if (IF_STMT()) {
-                return true;
-            } else {
-                
-                printDebug("STATEMENT -> FOR_STMT");
-        /* STATEMENT -> FOR_STMT */
-                if (FOR_STMT()) {
-                    return true;
-                } else {
-                    
-                    printDebug("STATEMENT -> RETURN_STMT");
-        /* STATEMENT -> RETURN_STMT */
-                    if (RETURN_STMT()) {
-                        return true;
                     } else {
-                        
-                        printDebug("STATEMENT -> EXPR_STMT");
-        /* STATEMENT -> EXPR_STMT */
-                        if (EXPR_STMT()) {
+                        printDebug("PARAMS -> EOP");
+                        /* PARAMS -> EOP */
+                        if (EOP()) {
                             return true;
                         } else {
-                            
-                            printDebug("STATEMENT -> PRINT_STMT");
-        /* STATEMENT -> PRINT_STMT */
-                            if (PRINT_STMT()) {
-                                return true;
-                            } else {
-                                
-                                printDebug("{ STMT_LIST }");
-        /* STATEMENT -> { STMT_LIST } */
-                                if (checkToken("{")) {
-                                    goNextToken();
-                                    if (STMT_LIST()) {
-                                        if (checkToken("}")) {
-                                            goNextToken();
-                                            return true;
-                                        }
+                            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+bool PARAMS_REST() {
+    printDebug("PARAMS_REST -> , PARAMS");
+    /* PARAMS_REST -> , PARAMS */
+    if (checkToken(",")) {
+        goNextToken();
+        if (PARAMS()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba PARAMS después de ','", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("PARAMS_REST -> EOP");
+        /* PARAMS_REST -> EOP */
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    }
+    return false;
+}
+
+    bool VAR_DECL() {
+    printDebug("VAR_DECL -> ;");
+    /* VAR_DECL-> ; */
+    if (checkToken(";")) {
+        goNextToken();
+        return true;
+    } else {
+        printDebug("VAR_DECL -> = EXPRESSION ;");
+        /* VAR_DECL-> = EXPRESSION ; */
+        if (checkToken("=")) {
+            goNextToken();
+            if (EXPRESSION()) {
+                if (checkToken(";")) {
+                    goNextToken();
+                    return true;
+                } else {
+                    errorDetected.addError("Error: Se esperaba ';' después de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                }
+            } else {
+                errorDetected.addError("Error: Se esperaba EXPRESSION después de '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba ';' o '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    }
+    return false;
+}
+
+    bool STMT_LIST() {
+    printDebug("STMT_LIST -> STATEMENT STMT_LIST_REST");
+    /* STMT_LIST -> STATEMENT STMT_LIST_REST */
+    if (STATEMENT()) {
+        if (STMT_LIST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba STMT_LIST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        errorDetected.addError("Error: Se esperaba STATEMENT", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+    }
+    return false;
+}
+
+    bool STMT_LIST_REST() {
+    printDebug("STMT_LIST_REST -> STATEMENT STMT_LIST_REST");
+    /* STMT_LIST_REST -> STATEMENT STMT_LIST_REST */
+    if (STATEMENT()) {
+        if (STMT_LIST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba STMT_LIST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("STMT_LIST_REST -> EOP");
+        /* STMT_LIST_REST -> EOP */
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    }
+    return false;
+}
+
+    bool STATEMENT() {
+    /* STATEMENT -> FUNCTION VAR_DECL */
+    printDebug("STATEMENT -> FUNCTION VAR_DECL");
+    if (FUNCTION()) {
+        if (VAR_DECL()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba VAR_DECL después de FUNCTION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("STATEMENT -> IF_STMT");
+        /* STATEMENT -> IF_STMT */
+        if (IF_STMT()) {
+            return true;
+        } else {
+            printDebug("STATEMENT -> FOR_STMT");
+            /* STATEMENT -> FOR_STMT */
+            if (FOR_STMT()) {
+                return true;
+            } else {
+                printDebug("STATEMENT -> RETURN_STMT");
+                /* STATEMENT -> RETURN_STMT */
+                if (RETURN_STMT()) {
+                    return true;
+                } else {
+                    printDebug("STATEMENT -> EXPR_STMT");
+                    /* STATEMENT -> EXPR_STMT */
+                    if (EXPR_STMT()) {
+                        return true;
+                    } else {
+                        printDebug("STATEMENT -> PRINT_STMT");
+                        /* STATEMENT -> PRINT_STMT */
+                        if (PRINT_STMT()) {
+                            return true;
+                        } else {
+                            printDebug("{ STMT_LIST }");
+                            /* STATEMENT -> { STMT_LIST } */
+                            if (checkToken("{")) {
+                                goNextToken();
+                                if (STMT_LIST()) {
+                                    if (checkToken("}")) {
+                                        goNextToken();
+                                        return true;
+                                    } else {
+                                        errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                                     }
+                                } else {
+                                    errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                                 }
+                            } else {
+                                errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
                         }
                     }
-                } 
+                }
             }
         }
-        return false;
     }
+    return false;
+}
 
     bool IF_STMT() {
         printDebug("IF_STMT -> if ( EXPRESSION ) { STMT_LIST } IF_STMT_REST");
@@ -901,746 +991,933 @@ private:
                                     if (IF_STMT_REST()) {
                                         return true;
                                     }
+                                } else {
+                                    errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                                 }
+                            } else {
+                                errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
+                        } else {
+                            errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
+                    } else {
+                        errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
+                } else {
+                    errorDetected.addError("Error: Se esperaba EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
+            } else {
+                errorDetected.addError("Error: Se esperaba '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         }
         return false;
     }
 
     bool IF_STMT_REST() {
-        printDebug("IF_STMT_REST -> else { STMT_LIST }");
-        /* IF_STMT_REST -> else { STMT_LIST } */
-        if (checkToken("else")) {
+    printDebug("IF_STMT_REST -> else { STMT_LIST }");
+    /* IF_STMT_REST -> else { STMT_LIST } */
+    if (checkToken("else")) {
+        goNextToken();
+        if (checkToken("{")) {
             goNextToken();
-            if (checkToken("{")) {
-                goNextToken();
-                if (STMT_LIST()) {
-                    if (checkToken("}")) {
-                        return true;
-                    }
-                }
-            }
-        } else {
-            
-            printDebug("IF_STMT_REST -> EOP");
-        /* IF_STMT_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool FOR_STMT() {
-        printDebug("FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STMT_LIST }");
-        /* FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STMT_LIST } */
-        if (checkToken("for")) {
-            goNextToken();
-            if (checkToken("(")) {
-                goNextToken();
-                if (EXPR_STMT()) {
-                    if (EXPRESSION()) {
-                        if (checkToken(";")) {
-                            goNextToken();
-                            if (EXPR_STMT()) {
-                                if (checkToken(")")) {
-                                    goNextToken();
-                                    if (checkToken("{")) {
-                                        goNextToken();
-                                        if (STMT_LIST()) {
-                                            if (checkToken("}")) {
-                                                goNextToken();
-                                                return true;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    bool RETURN_STMT() {
-        printDebug("RETURN_STMT -> return EXPRESSION ;");
-        /* RETURN_STMT -> return EXPRESSION ; */
-        if (checkToken("return")) {
-            goNextToken();
-            if (EXPRESSION()) {
-                if (checkToken(";")) {
-                    goNextToken();
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    bool PRINT_STMT() {
-        printDebug("PRINT_STMT -> print ( EXPR_LIST ) ;");
-        /* PRINT_STMT -> print ( EXPR_LIST ) ; */
-        if (checkToken("print")) {
-            goNextToken();
-            if (checkToken("(")) {
-                goNextToken();
-                if (EXPR_LIST()) {
-                    if (checkToken(")")) {
-                        goNextToken();
-                        if (checkToken(";")) {
-                            goNextToken();
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
-    bool EXPR_STMT() {
-        printDebug("EXPR_STMT -> EXPRESSION ;");
-        /* EXPR_STMT -> EXPRESSION ; */
-        if (EXPRESSION()) {
-            if (checkToken(";")) {
-                goNextToken();
-                return true;
-            }
-        } else {
-            
-            printDebug("EXPR_STMT -> ;");
-            /* EXPR_STMT -> ; */
-            if (checkToken(";")) {
-                goNextToken();
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool EXPR_LIST() {
-        printDebug("EXPR_LIST -> EXPRESSION EXPR_LIST_REST");
-        /* EXPR_LIST -> EXPRESSION EXPR_LIST_REST */
-        if (EXPRESSION()) {
-            if (EXPR_LIST_REST()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool EXPR_LIST_REST() {
-        printDebug("EXPR_LIST_REST -> , EXPR_LIST");
-        /* EXPR_LIST_REST -> , EXPR_LIST */
-        if (checkToken(",")) {
-            goNextToken();
-            if (EXPR_LIST()) {
-                return true;
-            }
-        } else {
-            
-            printDebug("EXPR_LIST_REST -> EOP");
-        /* EXPR_LIST_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool EXPRESSION() {
-        printDebug("EXPRESSION -> IDENTIFIER = EXPRESSION");
-        /* EXPRESSION -> IDENTIFIER = EXPRESSION */
-        bool flag = false;
-        int state = index;
-        if (IDENTIFIER()) {
-            if (checkToken("=")) {
-                goNextToken();
-                if (EXPRESSION()) {
+            if (STMT_LIST()) {
+                if (checkToken("}")) {
                     return true;
                 } else {
-                    flag = true;
+                    errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
+                errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("IF_STMT_REST -> EOP");
+        /* IF_STMT_REST -> EOP */
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    }
+    return false;
+}
+
+    bool FOR_STMT() {
+    printDebug("FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STMT_LIST }");
+    /* FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STMT_LIST } */
+    if (checkToken("for")) {
+        goNextToken();
+        if (checkToken("(")) {
+            goNextToken();
+            if (EXPR_STMT()) {
+                if (EXPRESSION()) {
+                    if (checkToken(";")) {
+                        goNextToken();
+                        if (EXPR_STMT()) {
+                            if (checkToken(")")) {
+                                goNextToken();
+                                if (checkToken("{")) {
+                                    goNextToken();
+                                    if (STMT_LIST()) {
+                                        if (checkToken("}")) {
+                                            goNextToken();
+                                            return true;
+                                        } else {
+                                            errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                        }
+                                    } else {
+                                        errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                    }
+                                } else {
+                                    errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                }
+                            } else {
+                                errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            }
+                        } else {
+                            errorDetected.addError("Error: Se esperaba EXPR_STMT después de ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        }
+                    } else {
+                        errorDetected.addError("Error: Se esperaba ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    }
+                } else {
+                    errorDetected.addError("Error: Se esperaba EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                }
+            } else {
+                errorDetected.addError("Error: Se esperaba EXPR_STMT", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        errorDetected.addError("Error: Se esperaba 'for'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+    }
+    return false;
+}
+
+    bool RETURN_STMT() {
+    printDebug("RETURN_STMT -> return EXPRESSION ;");
+    /* RETURN_STMT -> return EXPRESSION ; */
+    if (checkToken("return")) {
+        goNextToken();
+        if (EXPRESSION()) {
+            if (checkToken(";")) {
+                goNextToken();
+                return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba ';' después de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba EXPRESSION después de 'return'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        errorDetected.addError("Error: Se esperaba 'return'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+    }
+    return false;
+}
+
+    bool PRINT_STMT() {
+    printDebug("PRINT_STMT -> print ( EXPR_LIST ) ;");
+    /* PRINT_STMT -> print ( EXPR_LIST ) ; */
+    if (checkToken("print")) {
+        goNextToken();
+        if (checkToken("(")) {
+            goNextToken();
+            if (EXPR_LIST()) {
+                if (checkToken(")")) {
+                    goNextToken();
+                    if (checkToken(";")) {
+                        goNextToken();
+                        return true;
+                    } else {
+                        errorDetected.addError("Error: Se esperaba ';' después de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    }
+                } else {
+                    errorDetected.addError("Error: Se esperaba ')' después de EXPR_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                }
+            } else {
+                errorDetected.addError("Error: Se esperaba EXPR_LIST después de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba '(' después de 'print'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        errorDetected.addError("Error: Se esperaba 'print'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+    }
+    return false;
+}
+
+    bool EXPR_STMT() {
+    printDebug("EXPR_STMT -> EXPRESSION ;");
+    /* EXPR_STMT -> EXPRESSION ; */
+    if (EXPRESSION()) {
+        if (checkToken(";")) {
+            goNextToken();
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba ';' después de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("EXPR_STMT -> ;");
+        /* EXPR_STMT -> ; */
+        if (checkToken(";")) {
+            goNextToken();
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    }
+    return false;
+}
+
+    bool EXPR_LIST() {
+    printDebug("EXPR_LIST -> EXPRESSION EXPR_LIST_REST");
+    /* EXPR_LIST -> EXPRESSION EXPR_LIST_REST */
+    if (EXPRESSION()) {
+        if (EXPR_LIST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba EXPR_LIST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        errorDetected.addError("Error: Se esperaba EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+    }
+    return false;
+}
+
+    bool EXPR_LIST_REST() {
+    printDebug("EXPR_LIST_REST -> , EXPR_LIST");
+    /* EXPR_LIST_REST -> , EXPR_LIST */
+    if (checkToken(",")) {
+        goNextToken();
+        if (EXPR_LIST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba EXPR_LIST después de ','", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("EXPR_LIST_REST -> EOP");
+        /* EXPR_LIST_REST -> EOP */
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    }
+    return false;
+}
+
+    bool EXPRESSION() {
+    printDebug("EXPRESSION -> IDENTIFIER = EXPRESSION");
+    /* EXPRESSION -> IDENTIFIER = EXPRESSION */
+    bool flag = false;
+    int state = index;
+    if (IDENTIFIER()) {
+        if (checkToken("=")) {
+            goNextToken();
+            if (EXPRESSION()) {
+                return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba EXPRESSION después de '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 flag = true;
             }
         } else {
             flag = true;
         }
-        if (flag) {
-            index = state;
-            
-            printDebug("EXPRESSION -> OR_EXPR");
-        /* EXPRESSION -> OR_EXPR */
-            if (OR_EXPR()) {
-                return true;
-            }
-        }
-        return false;
+    } else {
+        flag = true;
     }
+    if (flag) {
+        index = state;
+        printDebug("EXPRESSION -> OR_EXPR");
+        /* EXPRESSION -> OR_EXPR */
+        if (OR_EXPR()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba OR_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    }
+    return false;
+}
 
     bool OR_EXPR() {
-        printDebug("OR_EXPR -> AND_EXPR OR_EXPR_REST");
-        /* OR_EXPR -> AND_EXPR OR_EXPR_REST */
+    printDebug("OR_EXPR -> AND_EXPR OR_EXPR_REST");
+    /* OR_EXPR -> AND_EXPR OR_EXPR_REST */
+    if (AND_EXPR()) {
+        if (OR_EXPR_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba OR_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        errorDetected.addError("Error: Se esperaba AND_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+    }
+    return false;
+}
+
+    bool OR_EXPR_REST() {
+    printDebug("OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST");
+    /* OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST */
+    if (checkToken("||")) {
+        goNextToken();
         if (AND_EXPR()) {
             if (OR_EXPR_REST()) {
                 return true;
-            }
-        }
-        return false;
-    }
-
-    bool OR_EXPR_REST() {
-        printDebug("OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST");
-        /* OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST */
-        if (checkToken("||")) {
-            goNextToken();
-            if (AND_EXPR()) {
-                if (OR_EXPR_REST()) {
-                    return true;
-                }
+            } else {
+                errorDetected.addError("Error: Se esperaba OR_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            
-            printDebug("OR_EXPR_REST -> EOP");
-        /* OR_EXPR_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
+            errorDetected.addError("Error: Se esperaba AND_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
+    } else {
+        printDebug("OR_EXPR_REST -> EOP");
+        /* OR_EXPR_REST -> EOP */
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
     }
+    return false;
+}
 
     bool AND_EXPR() {
-        printDebug("AND_EXPR -> EQ_EXPR AND_EXPR_REST");
-        /* AND_EXPR -> EQ_EXPR AND_EXPR_REST */
+    printDebug("AND_EXPR -> EQ_EXPR AND_EXPR_REST");
+    /* AND_EXPR -> EQ_EXPR AND_EXPR_REST */
+    if (EQ_EXPR()) {
+        if (AND_EXPR_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba AND_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        errorDetected.addError("Error: Se esperaba EQ_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+    }
+    return false;
+}
+
+    bool AND_EXPR_REST() {
+    printDebug("AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST");
+    /* AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST */
+    if (checkToken("&&")) {
+        goNextToken();
         if (EQ_EXPR()) {
             if (AND_EXPR_REST()) {
                 return true;
-            }
-        }
-        return false;
-    }
-
-    bool AND_EXPR_REST() {
-        printDebug("AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST");
-        /* AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST */
-        if (checkToken("&&")) {
-            goNextToken();
-            if (EQ_EXPR()) {
-                if (AND_EXPR_REST()) {
-                    return true;
-                }
+            } else {
+                errorDetected.addError("Error: Se esperaba AND_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            
-            printDebug("AND_EXPR_REST -> EOP");
-        /* AND_EXPR_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
+            errorDetected.addError("Error: Se esperaba EQ_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
+    } else {
+        printDebug("AND_EXPR_REST -> EOP");
+        /* AND_EXPR_REST -> EOP */
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
     }
+    return false;
+}
 
     bool EQ_EXPR() {
-        printDebug("EQ_EXPR -> REL_EXPR EQ_EXPR_REST_REST");
-        /* EQ_EXPR -> EXPR EQ_EXPR_REST_REST */
-        if (REL_EXPR()) {
-            if (EQ_EXPR_REST_REST()) {
-                return true;
-            }
+    printDebug("EQ_EXPR -> REL_EXPR EQ_EXPR_REST_REST");
+    /* EQ_EXPR -> REL_EXPR EQ_EXPR_REST_REST */
+    if (REL_EXPR()) {
+        if (EQ_EXPR_REST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba EQ_EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
+    } else {
+        errorDetected.addError("Error: Se esperaba REL_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
     bool EQ_EXPR_REST() {
-        printDebug("EQ_EXPR_REST -> == REL_EXPR");
-        /* EQ_EXPR_REST -> == REL_EXPR*/
-        if (checkToken("==")) {
+    printDebug("EQ_EXPR_REST -> == REL_EXPR");
+    /* EQ_EXPR_REST -> == REL_EXPR */
+    if (checkToken("==")) {
+        goNextToken();
+        if (REL_EXPR()) {
+            if (EQ_EXPR_REST()) {
+                return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba EQ_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba REL_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("EQ_EXPR_REST -> != REL_EXPR");
+        /* EQ_EXPR_REST -> != REL_EXPR */
+        if (checkToken("!=")) {
             goNextToken();
             if (REL_EXPR()) {
                 if (EQ_EXPR_REST()) {
                     return true;
+                } else {
+                    errorDetected.addError("Error: Se esperaba EQ_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
-            }
-        } else {
-            
-            printDebug("EQ_EXPR_REST -> != REL_EXPR");
-        /* EQ_EXPR_REST -> != REL_EXPR*/
-            if (checkToken("!=")) {
-                goNextToken();
-                if (REL_EXPR()) {
-                    return true;
-                }
+            } else {
+                errorDetected.addError("Error: Se esperaba REL_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         }
-        return false;
     }
+    return false;
+}
 
     bool EQ_EXPR_REST_REST() {
-        printDebug("EQ_EXPRT_REST_REST -> EQ_EXPR_REST EQ_EXPR_REST_REST");
-        /* EQ_EXPR_REST_REST -> EQ_EXPR_REST EQ_EXPR_REST_REST */
-        if (EQ_EXPR_REST()) {
-            if (EQ_EXPR_REST_REST()) {
-                return true;
-            }
+    printDebug("EQ_EXPRT_REST_REST -> EQ_EXPR_REST EQ_EXPR_REST_REST");
+    /* EQ_EXPR_REST_REST -> EQ_EXPR_REST EQ_EXPR_REST_REST */
+    if (EQ_EXPR_REST()) {
+        if (EQ_EXPR_REST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba EQ_EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        else {
-            
-            printDebug("EQ_EXPR_REST_REST -> EOP");
+    } else {
+        printDebug("EQ_EXPR_REST_REST -> EOP");
         /* EQ_EXPR_REST_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
     }
+    return false;
+}
 
     bool REL_EXPR() {
-        printDebug("REL_EXPR -> EXPR REL_EXPR_REST_REST");
-        /* REL_EXPR -> EXPR REL_EXPR_REST_REST */
-        if (EXPR()) {
-            if (REL_EXPR_REST_REST()) {
-                return true;
-            }
+    printDebug("REL_EXPR -> EXPR REL_EXPR_REST_REST");
+    /* REL_EXPR -> EXPR REL_EXPR_REST_REST */
+    if (EXPR()) {
+        if (REL_EXPR_REST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba REL_EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
+    } else {
+        errorDetected.addError("Error: Se esperaba EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
     bool REL_EXPR_REST() {
-        printDebug("REL_EXPR_REST -> < EXPR");
-        /* REL_EXPR_REST -> < EXPR */
-        if (checkToken("<")) {
+    printDebug("REL_EXPR_REST -> < EXPR");
+    /* REL_EXPR_REST -> < EXPR */
+    if (checkToken("<")) {
+        goNextToken();
+        if (EXPR()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba EXPR después de '<'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("REL_EXPR_REST -> > EXPR");
+        /* REL_EXPR_REST -> > EXPR */
+        if (checkToken(">")) {
             goNextToken();
             if (EXPR()) {
                 return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba EXPR después de '>'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            
-            printDebug("REL_EXPR_REST -> > EXPR");
-        /* REL_EXPR_REST -> > EXPR */
-            if (checkToken(">")) {
+            printDebug("REL_EXPR_REST -> <= EXPR");
+            /* REL_EXPR_REST -> <= EXPR */
+            if (checkToken("<=")) {
                 goNextToken();
                 if (EXPR()) {
                     return true;
+                } else {
+                    errorDetected.addError("Error: Se esperaba EXPR después de '<='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                
-                printDebug("REL_EXPR_REST -> <= EXPR");
-        /* REL_EXPR_REST -> <= EXPR */
-                if (checkToken("<=")) {
+                printDebug("REL_EXPR_REST -> >= EXPR");
+                /* REL_EXPR_REST -> >= EXPR */
+                if (checkToken(">=")) {
                     goNextToken();
                     if (EXPR()) {
                         return true;
-                    }
-                } else {
-                    
-                    printDebug("REL_EXPR_REST -> >= EXPR");
-        /* REL_EXPR_REST -> >= EXPR */
-                    if (checkToken(">=")) {
-                        goNextToken();
-                        if (EXPR()) {
-                            return true;
-                        }
+                    } else {
+                        errorDetected.addError("Error: Se esperaba EXPR después de '>='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 }
             }
         }
-        return false;
     }
+    return false;
+}
 
     bool REL_EXPR_REST_REST() {
-        printDebug("REL_EXPR_REST_REST -> REL_EXPR_REST REL_EXPR_REST_REST");
-        /* REL_EXPR_REST_REST -> REL_EXPR_REST REL_EXPR_REST_REST */
-        if (REL_EXPR_REST()) {
-            if (REL_EXPR_REST_REST()) {
-                return true;
-            }
+    printDebug("REL_EXPR_REST_REST -> REL_EXPR_REST REL_EXPR_REST_REST");
+    /* REL_EXPR_REST_REST -> REL_EXPR_REST REL_EXPR_REST_REST */
+    if (REL_EXPR_REST()) {
+        if (REL_EXPR_REST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba REL_EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        else {
-            
-            printDebug("REL_EXPR_REST_REST -> EOP");
-        /* EXPR_REST_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
+    } else {
+        printDebug("REL_EXPR_REST_REST -> EOP");
+        /* REL_EXPR_REST_REST -> EOP */
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
     }
+    return false;
+}
 
     bool EXPR() {
-        printDebug("EXPR -> TERM EXPR_REST_REST");
-        /* EXPR -> TERM EXPR_REST_REST */
-        if (TERM()) {
-            if (EXPR_REST_REST()) {
-                return true;
-            }
+    printDebug("EXPR -> TERM EXPR_REST_REST");
+    /* EXPR -> TERM EXPR_REST_REST */
+    if (TERM()) {
+        if (EXPR_REST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
+    } else {
+        errorDetected.addError("Error: Se esperaba TERM", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
     bool EXPR_REST() {
-        printDebug("EXPR_REST -> + TERM");
-        /* EXPR_REST -> + TERM */
-        if (checkToken("+")) {
+    printDebug("EXPR_REST -> + TERM");
+    /* EXPR_REST -> + TERM */
+    if (checkToken("+")) {
+        goNextToken();
+        if (TERM()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba TERM después de '+'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("EXPR_REST -> - TERM");
+        /* EXPR_REST -> - TERM */
+        if (checkToken("-")) {
             goNextToken();
             if (TERM()) {
                 return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba TERM después de '-'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         }
-        else {
-            
-            printDebug("EXPR_REST -> - TERM");
-            if (checkToken("-")) {
-                goNextToken(); 
-                if (TERM()) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
+    return false;
+}
 
     bool EXPR_REST_REST() {
-        printDebug("EXPR_REST_REST -> EXPR_REST EXPR_REST_REST");
-        /* EXPR_REST_REST -> EXPR_REST EXPR_REST_REST */
-        if (EXPR_REST()) {
-            if (EXPR_REST_REST()) {
-                return true;
-            }
+    printDebug("EXPR_REST_REST -> EXPR_REST EXPR_REST_REST");
+    /* EXPR_REST_REST -> EXPR_REST EXPR_REST_REST */
+    if (EXPR_REST()) {
+        if (EXPR_REST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        else {
-            
-            printDebug("EXPR_REST_REST -> EOP");
+    } else {
+        printDebug("EXPR_REST_REST -> EOP");
         /* EXPR_REST_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
     }
+    return false;
+}
 
     bool TERM() {
-        printDebug("TERM -> UNARY TERM_REST_REST");
-        /* TERM -> UNARY TERM_REST_REST */
-        if (UNARY()) {
-            if (TERM_REST_REST()) {
-                return true;
-            }
+    printDebug("TERM -> UNARY TERM_REST_REST");
+    /* TERM -> UNARY TERM_REST_REST */
+    if (UNARY()) {
+        if (TERM_REST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba TERM_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
+    } else {
+        errorDetected.addError("Error: Se esperaba UNARY", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
     bool TERM_REST() {
-        printDebug("TERM_REST -> * UNARY");
-        /* TERM_REST -> * UNARY */
-        if (checkToken("*")) {
+    printDebug("TERM_REST -> * UNARY");
+    /* TERM_REST -> * UNARY */
+    if (checkToken("*")) {
+        goNextToken();
+        if (UNARY()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba UNARY después de '*'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("TERM_REST -> / UNARY");
+        /* TERM_REST -> / UNARY */
+        if (checkToken("/")) {
             goNextToken();
             if (UNARY()) {
                 return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba UNARY después de '/'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            
-            printDebug("TERM_REST -> / UNARY");
-        /* TERM_REST -> / UNARY */
-            if (checkToken("/")) {
+            printDebug("TERM_REST -> % UNARY");
+            /* TERM_REST -> % UNARY */
+            if (checkToken("%")) {
                 goNextToken();
                 if (UNARY()) {
                     return true;
-                }
-            } else {
-                
-                printDebug("TERM_REST -> % UNARY");
-        /* TERM_REST -> % UNARY */
-                if (checkToken("%")) {
-                    goNextToken();
-                    if (UNARY()) {
-                        return true;
-                    }
+                } else {
+                    errorDetected.addError("Error: Se esperaba UNARY después de '%'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             }
         }
-        return false;
     }
+    return false;
+}
 
     bool TERM_REST_REST() {
-        printDebug("TERM_REST_REST -> TERM_REST TERM_REST_REST");
+    printDebug("TERM_REST_REST -> TERM_REST TERM_REST_REST");
     /* TERM_REST_REST -> TERM_REST TERM_REST_REST */
-        if (TERM_REST()) {
-            if (TERM_REST_REST()) {
-                return true;
-            }
+    if (TERM_REST()) {
+        if (TERM_REST_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba TERM_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        else {
-            
-            printDebug("TERM_REST_REST -> EOP");
+    } else {
+        printDebug("TERM_REST_REST -> EOP");
         /* TERM_REST_REST -> EOP */
-            if (EOP()) {
-                return true;
-            }
-        } 
-        return false;  
+        if (EOP()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
     }
+    return false;
+}
 
     bool UNARY() {
-        printDebug("UNARY -> ! UNARY");
-        /* UNARY -> ! UNARY */
-        if (checkToken("!")) {
+    printDebug("UNARY -> ! UNARY");
+    /* UNARY -> ! UNARY */
+    if (checkToken("!")) {
+        goNextToken();
+        if (UNARY()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba UNARY después de '!'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("UNARY -> - UNARY");
+        /* UNARY -> - UNARY */
+        if (checkToken("-")) {
             goNextToken();
             if (UNARY()) {
                 return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba UNARY después de '-'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            
-            printDebug("UNARY -> - UNARY");
-        /* UNARY -> - UNARY */
-            if (checkToken("-")) {
-                goNextToken();
-                if (UNARY()) {
-                    return true;
-                }
+            printDebug("UNARY -> FACTOR");
+            /* UNARY -> FACTOR */
+            if (FACTOR()) {
+                return true;
             } else {
-                
-                printDebug("UNARY -> FACTOR");
-        /* UNARY -> FACTOR */
-                if (FACTOR()) {
-                    return true;
-                }
+                errorDetected.addError("Error: Se esperaba FACTOR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
-        } 
-        return false;
+        }
     }
+    return false;
+}
 
     bool FACTOR() {
-        printDebug("FACTOR -> IDENTIFIER FACTOR_REST");
-        /* FACTOR -> IDENTIFIER FACTOR_REST */
-        if (IDENTIFIER()) {
+    printDebug("FACTOR -> IDENTIFIER FACTOR_REST");
+    /* FACTOR -> IDENTIFIER FACTOR_REST */
+    if (IDENTIFIER()) {
+        if (FACTOR_REST()) {
+            return true;
+        } else {
+            errorDetected.addError("Error: Se esperaba FACTOR_REST después de IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("FACTOR -> INT_LITERAL FACTOR_REST");
+        /* FACTOR -> INT_LITERAL FACTOR_REST */
+        if (INT_LITERAL()) {
             if (FACTOR_REST()) {
                 return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba FACTOR_REST después de INT_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            
-            printDebug("FACTOR -> INT_LITERAL FACTOR_REST");
-        /* FACTOR -> INT_LITERAL FACTOR_REST */
-            if (INT_LITERAL()) {
+            printDebug("FACTOR -> CHAR_LITERAL FACTOR_REST");
+            /* FACTOR -> CHAR_LITERAL FACTOR_REST */
+            if (CHAR_LITERAL()) {
                 if (FACTOR_REST()) {
                     return true;
+                } else {
+                    errorDetected.addError("Error: Se esperaba FACTOR_REST después de CHAR_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                
-                printDebug("FACTOR -> CHAR_LITERAL FACTOR_REST");
-        /* FACTOR -> CHAR_LITERAL FACTOR_REST */
-                if (CHAR_LITERAL()) {
+                printDebug("FACTOR -> STRING_LITERAL FACTOR_REST");
+                /* FACTOR -> STRING_LITERAL FACTOR_REST */
+                if (STRING_LITERAL()) {
                     if (FACTOR_REST()) {
                         return true;
+                    } else {
+                        errorDetected.addError("Error: Se esperaba FACTOR_REST después de STRING_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 } else {
-                    
-                    printDebug("FACTOR -> STRING_LITERAL FACTOR_REST");
-        /* FACTOR -> STRING_LITERAL FACTOR_REST */
-                    if (STRING_LITERAL()) {
+                    printDebug("FACTOR -> BOOL_LITERAL FACTOR_REST");
+                    /* FACTOR -> BOOL_LITERAL FACTOR_REST */
+                    if (BOOL_LITERAL()) {
                         if (FACTOR_REST()) {
                             return true;
+                        } else {
+                            errorDetected.addError("Error: Se esperaba FACTOR_REST después de BOOL_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
                     } else {
-                        
-                        printDebug("FACTOR -> BOOL_LITERAL FACTOR_REST");
-        /* FACTOR -> BOOL_LITERAL FACTOR_REST */
-                        if (BOOL_LITERAL()) {
-                            if (FACTOR_REST()) {
-                                return true;
+                        printDebug("FACTOR -> ( EXPRESSION ) FACTOR_REST");
+                        /* FACTOR -> ( EXPRESSION ) FACTOR_REST */
+                        if (checkToken("(")) {
+                            goNextToken();
+                            if (EXPRESSION()) {
+                                if (checkToken(")")) {
+                                    goNextToken();
+                                    if (FACTOR_REST()) {
+                                        return true;
+                                    } else {
+                                        errorDetected.addError("Error: Se esperaba FACTOR_REST después de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                    }
+                                } else {
+                                    errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                }
+                            } else {
+                                errorDetected.addError("Error: Se esperaba EXPRESSION después de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
                         } else {
-                            
-                            printDebug("FACTOR -> ( EXPRESSION ) FACTOR_REST");
-        /* FACTOR -> ( EXPRESSION ) FACTOR_REST */
-                            if (checkToken("(")) {
-                                goNextToken();
-                                if (EXPRESSION()) {
-                                    if (checkToken(")")) {
-                                        goNextToken();
-                                        if (FACTOR_REST()) {
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
+                            errorDetected.addError("Error: Se esperaba '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
                     }
                 }
             }
         }
-        return false;
     }
+    return false;
+}
 
     bool FACTOR_REST() {
-        printDebug("FACTOR_REST -> [ EXPRESSION ] FACTOR_REST");
-        /* FACTOR_REST -> [ EXPRESSION ] FACTOR_REST */
-        if (checkToken("[")) {
+    printDebug("FACTOR_REST -> [ EXPRESSION ] FACTOR_REST");
+    /* FACTOR_REST -> [ EXPRESSION ] FACTOR_REST */
+    if (checkToken("[")) {
+        goNextToken();
+        if (EXPRESSION()) {
+            if (checkToken("]")) {
+                goNextToken();
+                if (FACTOR_REST()) {
+                    return true;
+                } else {
+                    errorDetected.addError("Error: Se esperaba FACTOR_REST después de ']'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                }
+            } else {
+                errorDetected.addError("Error: Se esperaba ']' después de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            errorDetected.addError("Error: Se esperaba EXPRESSION después de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        }
+    } else {
+        printDebug("FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST");
+        /* FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST */
+        if (checkToken("(")) {
             goNextToken();
-            if (EXPRESSION()) {
-                if (checkToken("]")) {
+            if (EXPR_LIST()) {
+                if (checkToken(")")) {
                     goNextToken();
                     if (FACTOR_REST()) {
                         return true;
+                    } else {
+                        errorDetected.addError("Error: Se esperaba FACTOR_REST después de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
-                }
-            }
-        } else {
-            
-            printDebug("FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST");
-        /* FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST */
-            if (checkToken("(")) {
-                goNextToken();
-                if (EXPR_LIST()) {
-                    if (checkToken(")")) {
-                        goNextToken();
-                        if (FACTOR_REST()) {
-                            return true;
-                        }
-                    }
+                } else {
+                    errorDetected.addError("Error: Se esperaba ')' después de EXPR_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                
-                printDebug("FACTOR_REST -> EOP");
-                if (EOP()) {
-                    return true;
-                }
-        /* FACTOR_REST -> EOP */
+                errorDetected.addError("Error: Se esperaba EXPR_LIST después de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            }
+        } else {
+            printDebug("FACTOR_REST -> EOP");
+            /* FACTOR_REST -> EOP */
+            if (EOP()) {
+                return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         }
-        return false;
     }
+    return false;
+}
 
     bool EOP() {
         return true;
     }
 
     bool IDENTIFIER() {
-        printDebug("IDENTIFIER -> <Check Token Type>");
-        /* IDENTIFIER -> <Check Token Type> */
-        if (checkTokenType("IDENTIFIER")) {
-            goNextToken();
-            return true;
-        }
-        return false;
+    printDebug("IDENTIFIER -> <Check Token Type>");
+    /* IDENTIFIER -> <Check Token Type> */
+    if (checkTokenType("IDENTIFIER")) {
+        goNextToken();
+        return true;
+    } else {
+        errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
     bool INT_TYPE() {
-        printDebug("INT_TYPE -> integer");
-        /* INT_TYPE -> integer */
-        if (checkToken("integer")) {
-            goNextToken();
-            return true;
-        }
-        return false;
+    printDebug("INT_TYPE -> integer");
+    /* INT_TYPE -> integer */
+    if (checkToken("integer")) {
+        goNextToken();
+        return true;
+    } else {
+        errorDetected.addError("Error: Se esperaba 'integer'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
-    bool BOOL_TYPE() {
-        printDebug("BOOL_TYPE -> boolean");
-        /* BOOL_TYPE -> boolean */
-        if (checkToken("boolean")) {
-            goNextToken();
-            return true;
-        }
-        return false;
+bool BOOL_TYPE() {
+    printDebug("BOOL_TYPE -> boolean");
+    /* BOOL_TYPE -> boolean */
+    if (checkToken("boolean")) {
+        goNextToken();
+        return true;
+    } else {
+        errorDetected.addError("Error: Se esperaba 'boolean'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
-    bool CHAR_TYPE() {
-        printDebug("CHAR_TYPE -> char");
-        /* CHAR_TYPE -> char */
-        if (checkToken("char")) {
-            goNextToken();
-            return true;
-        }
-        return false;
+bool CHAR_TYPE() {
+    printDebug("CHAR_TYPE -> char");
+    /* CHAR_TYPE -> char */
+    if (checkToken("char")) {
+        goNextToken();
+        return true;
+    } else {
+        errorDetected.addError("Error: Se esperaba 'char'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
-    bool STRING_TYPE() {
-        printDebug("STRING_TYPE -> string");
-        /* STRING_TYPE -> string */
-        if (checkToken("string")) {
-            goNextToken();
-            return true;
-        }
-        return false;
+bool STRING_TYPE() {
+    printDebug("STRING_TYPE -> string");
+    /* STRING_TYPE -> string */
+    if (checkToken("string")) {
+        goNextToken();
+        return true;
+    } else {
+        errorDetected.addError("Error: Se esperaba 'string'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
-    bool VOID_TYPE() {
-        printDebug("VOID_TYPE -> void");
-        /* VOID_TYPE -> void */
-        if (checkToken("void")) {
-            goNextToken();
-            return true;
-        }
-        return false;
+bool VOID_TYPE() {
+    printDebug("VOID_TYPE -> void");
+    /* VOID_TYPE -> void */
+    if (checkToken("void")) {
+        goNextToken();
+        return true;
+    } else {
+        errorDetected.addError("Error: Se esperaba 'void'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
     bool INT_LITERAL() {
-        printDebug("INT_LITERAL -> <Check Token Type>");
-        /* INT_LITERAL -> <Check Token Type> */
-        if (checkTokenType("INTEGER")) {
-            goNextToken();
-            return true;
-        }
-        return false;
+    printDebug("INT_LITERAL -> <Check Token Type>");
+    /* INT_LITERAL -> <Check Token Type> */
+    if (checkTokenType("INTEGER")) {
+        goNextToken();
+        return true;
+    } else {
+        errorDetected.addError("Error: Se esperaba un literal entero", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
-    bool CHAR_LITERAL() {
-        printDebug("CHAR_LITERAL -> ' <Check Token Type> '");
-        /* CHAR_LITERAL -> ' <Check Token Type> ' */
-        if (checkToken("'")) {
+bool CHAR_LITERAL() {
+    printDebug("CHAR_LITERAL -> ' <Check Token Type> '");
+    /* CHAR_LITERAL -> ' <Check Token Type> ' */
+    if (checkToken("'")) {
+        goNextToken();
+        if (checkTokenType("CHAR")) {
             goNextToken();
-            if (checkTokenType("CHAR")) {
+            if (checkToken("'")) {
                 goNextToken();
-                if (checkToken("'")) {
-                    goNextToken();
-                    return true;
-                }
+                return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba ' después del carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
+        } else {
+            errorDetected.addError("Error: Se esperaba un carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
+    } else {
+        errorDetected.addError("Error: Se esperaba ' antes del carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
-    bool STRING_LITERAL() {
-        printDebug("STRING_LITERAL -> \" <Check Token Type> \"");
-        /* STRING_LITERAL -> " <Check Token Type> " */
-        if (checkToken("\"")) {
+bool STRING_LITERAL() {
+    printDebug("STRING_LITERAL -> \" <Check Token Type> \"");
+    /* STRING_LITERAL -> " <Check Token Type> " */
+    if (checkToken("\"")) {
+        goNextToken();
+        if (checkTokenType("STRING")) {
             goNextToken();
-            if (checkTokenType("STRING")) {
+            if (checkToken("\"")) {
                 goNextToken();
-                if (checkToken("\"")) {
-                    goNextToken();
-                    return true;
-                }
+                return true;
+            } else {
+                errorDetected.addError("Error: Se esperaba \" después de la cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
+        } else {
+            errorDetected.addError("Error: Se esperaba una cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
+    } else {
+        errorDetected.addError("Error: Se esperaba \" antes de la cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
     }
+    return false;
+}
 
-    bool BOOL_LITERAL() {
-        printDebug("BOOL_LITERAL -> true");
-        /* BOOL_LITERAL -> true */
-        if (checkToken("true")) {
+bool BOOL_LITERAL() {
+    printDebug("BOOL_LITERAL -> true");
+    /* BOOL_LITERAL -> true */
+    if (checkToken("true")) {
+        goNextToken();
+        return true;
+    } else {
+        printDebug("BOOL_LITERAL -> false");
+        /* BOOL_LITERAL -> false */
+        if (checkToken("false")) {
             goNextToken();
             return true;
         } else {
-            printDebug("BOOL_LITERAL -> false");
-        /* BOOL_LITERAL -> false */
-            if (checkToken("false")) {
-                goNextToken();
-                return true;
-            }
+            errorDetected.addError("Error: Se esperaba 'true' o 'false'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
-        return false;
     }
+    return false;
+}
 };
 
 int main() {
@@ -1676,6 +1953,14 @@ int main() {
 
     
     Parser parser(tokens, false);
-
+    auto errores = parser.errorDetected.getErrors();
+     if (!errores.empty()) {
+        cout << "------PARSER TERMINADO CON " << errores.size() << " ERRORES" << endl;
+        for ( auto error : errores) {
+            cout << std::get<0, std::string>(error) << " '" << std::get<1, std::string>(error) << "' en fila "<< std::get<2, int>(error) << ", columna " << std::get<3, int>(error) << endl;
+}
+    } else {
+        cout << "------PARSER TERMINADO SIN ERRORES" << endl;
+    }
     return 0;
 }
