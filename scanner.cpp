@@ -474,7 +474,7 @@ const set<string> keepNodes = {
     "RETURN_STMT", "PRINT_STMT", "VAR_DECL", "TYPE"
 };
 
-const set<string> groupingSymbols = {"(", ")", "{", "}", "[", "]"};
+const set<string> uselessSymbols = {"(", ")", "{", "}", ";"};
 
 string readCSVField(istream& str) {
     string result;
@@ -528,7 +528,7 @@ void generateAST(const string& inputFile, const string& outputFile) {
                 node.value = fields[2];
                 node.type = fields[3];
 
-                if (groupingSymbols.find(node.value) != groupingSymbols.end()) {
+                if (uselessSymbols.find(node.value) != uselessSymbols.end()) {
                     continue;
                 }
 
@@ -545,7 +545,6 @@ void generateAST(const string& inputFile, const string& outputFile) {
                 continue;
             }
         } else {
-            cerr << "Invalid line format: " << line << endl;
             continue;
         }
     }
