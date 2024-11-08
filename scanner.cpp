@@ -707,10 +707,10 @@ private:
                 if (TYPE_REST()) {
                     return true;
                 }else {
-                errorDetected.addError("Error: Se esperaba TYPE_REST después de '[]'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba TYPE_REST despues de '[]'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            errorDetected.addError("Error: Se esperaba ']' después de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba ']' despues de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
         } else {
             
@@ -740,7 +740,7 @@ private:
                 errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            errorDetected.addError("Error: Se esperaba TYPE_REST después de INT_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba TYPE_REST despues de INT_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
@@ -757,7 +757,7 @@ private:
                     errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                errorDetected.addError("Error: Se esperaba TYPE_REST después de BOOL_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba TYPE_REST despues de BOOL_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             printDebug("PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
@@ -774,7 +774,7 @@ private:
                         errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 } else {
-                    errorDetected.addError("Error: Se esperaba TYPE_REST después de CHAR_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    errorDetected.addError("Error: Se esperaba TYPE_REST despues de CHAR_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
                 printDebug("PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
@@ -791,7 +791,7 @@ private:
                             errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
                     } else {
-                        errorDetected.addError("Error: Se esperaba TYPE_REST después de STRING_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        errorDetected.addError("Error: Se esperaba TYPE_REST despues de STRING_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 } else {
                     printDebug("PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
@@ -808,7 +808,7 @@ private:
                                 errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
                         } else {
-                            errorDetected.addError("Error: Se esperaba TYPE_REST después de VOID_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            errorDetected.addError("Error: Se esperaba TYPE_REST despues de VOID_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
                     } else {
                         printDebug("PARAMS -> EOP");
@@ -833,7 +833,7 @@ bool PARAMS_REST() {
         if (PARAMS()) {
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba PARAMS después de ','", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba PARAMS despues de ','", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("PARAMS_REST -> EOP");
@@ -863,10 +863,10 @@ bool PARAMS_REST() {
                     goNextToken();
                     return true;
                 } else {
-                    errorDetected.addError("Error: Se esperaba ';' después de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    errorDetected.addError("Error: Se esperaba ';' despues de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                errorDetected.addError("Error: Se esperaba EXPRESSION después de '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba EXPRESSION despues de '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             errorDetected.addError("Error: Se esperaba ';' o '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
@@ -918,7 +918,7 @@ bool PARAMS_REST() {
         if (VAR_DECL()) {
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba VAR_DECL después de FUNCTION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba VAR_DECL despues de FUNCTION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("STATEMENT -> IF_STMT");
@@ -1077,7 +1077,7 @@ bool PARAMS_REST() {
                                 errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
                         } else {
-                            errorDetected.addError("Error: Se esperaba EXPR_STMT después de ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            errorDetected.addError("Error: Se esperaba EXPR_STMT despues de ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
                     } else {
                         errorDetected.addError("Error: Se esperaba ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
@@ -1107,10 +1107,10 @@ bool PARAMS_REST() {
                 goNextToken();
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba ';' después de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba ';' despues de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            errorDetected.addError("Error: Se esperaba EXPRESSION después de 'return'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba EXPRESSION despues de 'return'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         errorDetected.addError("Error: Se esperaba 'return'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
@@ -1132,16 +1132,16 @@ bool PARAMS_REST() {
                         goNextToken();
                         return true;
                     } else {
-                        errorDetected.addError("Error: Se esperaba ';' después de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        errorDetected.addError("Error: Se esperaba ';' despues de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 } else {
-                    errorDetected.addError("Error: Se esperaba ')' después de EXPR_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    errorDetected.addError("Error: Se esperaba ')' despues de EXPR_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                errorDetected.addError("Error: Se esperaba EXPR_LIST después de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba EXPR_LIST despues de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            errorDetected.addError("Error: Se esperaba '(' después de 'print'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba '(' despues de 'print'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         errorDetected.addError("Error: Se esperaba 'print'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
@@ -1157,7 +1157,7 @@ bool PARAMS_REST() {
             goNextToken();
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba ';' después de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba ';' despues de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("EXPR_STMT -> ;");
@@ -1195,7 +1195,7 @@ bool PARAMS_REST() {
         if (EXPR_LIST()) {
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba EXPR_LIST después de ','", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba EXPR_LIST despues de ','", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("EXPR_LIST_REST -> EOP");
@@ -1220,7 +1220,7 @@ bool PARAMS_REST() {
             if (EXPRESSION()) {
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba EXPRESSION después de '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba EXPRESSION despues de '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 flag = true;
             }
         } else {
@@ -1416,7 +1416,7 @@ bool PARAMS_REST() {
         if (EXPR()) {
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba EXPR después de '<'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba EXPR despues de '<'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("REL_EXPR_REST -> > EXPR");
@@ -1426,7 +1426,7 @@ bool PARAMS_REST() {
             if (EXPR()) {
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba EXPR después de '>'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba EXPR despues de '>'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             printDebug("REL_EXPR_REST -> <= EXPR");
@@ -1436,7 +1436,7 @@ bool PARAMS_REST() {
                 if (EXPR()) {
                     return true;
                 } else {
-                    errorDetected.addError("Error: Se esperaba EXPR después de '<='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    errorDetected.addError("Error: Se esperaba EXPR despues de '<='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
                 printDebug("REL_EXPR_REST -> >= EXPR");
@@ -1446,7 +1446,7 @@ bool PARAMS_REST() {
                     if (EXPR()) {
                         return true;
                     } else {
-                        errorDetected.addError("Error: Se esperaba EXPR después de '>='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        errorDetected.addError("Error: Se esperaba EXPR despues de '>='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 }
             }
@@ -1499,7 +1499,7 @@ bool PARAMS_REST() {
         if (TERM()) {
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba TERM después de '+'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba TERM despues de '+'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("EXPR_REST -> - TERM");
@@ -1509,7 +1509,7 @@ bool PARAMS_REST() {
             if (TERM()) {
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba TERM después de '-'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba TERM despues de '-'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         }
     }
@@ -1560,7 +1560,7 @@ bool PARAMS_REST() {
         if (UNARY()) {
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba UNARY después de '*'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba UNARY despues de '*'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("TERM_REST -> / UNARY");
@@ -1570,7 +1570,7 @@ bool PARAMS_REST() {
             if (UNARY()) {
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba UNARY después de '/'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba UNARY despues de '/'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             printDebug("TERM_REST -> % UNARY");
@@ -1580,7 +1580,7 @@ bool PARAMS_REST() {
                 if (UNARY()) {
                     return true;
                 } else {
-                    errorDetected.addError("Error: Se esperaba UNARY después de '%'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    errorDetected.addError("Error: Se esperaba UNARY despues de '%'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             }
         }
@@ -1617,7 +1617,7 @@ bool PARAMS_REST() {
         if (UNARY()) {
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba UNARY después de '!'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba UNARY despues de '!'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("UNARY -> - UNARY");
@@ -1627,7 +1627,7 @@ bool PARAMS_REST() {
             if (UNARY()) {
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba UNARY después de '-'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba UNARY despues de '-'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             printDebug("UNARY -> FACTOR");
@@ -1649,7 +1649,7 @@ bool PARAMS_REST() {
         if (FACTOR_REST()) {
             return true;
         } else {
-            errorDetected.addError("Error: Se esperaba FACTOR_REST después de IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba FACTOR_REST despues de IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("FACTOR -> INT_LITERAL FACTOR_REST");
@@ -1658,7 +1658,7 @@ bool PARAMS_REST() {
             if (FACTOR_REST()) {
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba FACTOR_REST después de INT_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba FACTOR_REST despues de INT_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             printDebug("FACTOR -> CHAR_LITERAL FACTOR_REST");
@@ -1667,7 +1667,7 @@ bool PARAMS_REST() {
                 if (FACTOR_REST()) {
                     return true;
                 } else {
-                    errorDetected.addError("Error: Se esperaba FACTOR_REST después de CHAR_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    errorDetected.addError("Error: Se esperaba FACTOR_REST despues de CHAR_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
                 printDebug("FACTOR -> STRING_LITERAL FACTOR_REST");
@@ -1676,7 +1676,7 @@ bool PARAMS_REST() {
                     if (FACTOR_REST()) {
                         return true;
                     } else {
-                        errorDetected.addError("Error: Se esperaba FACTOR_REST después de STRING_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        errorDetected.addError("Error: Se esperaba FACTOR_REST despues de STRING_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 } else {
                     printDebug("FACTOR -> BOOL_LITERAL FACTOR_REST");
@@ -1685,7 +1685,7 @@ bool PARAMS_REST() {
                         if (FACTOR_REST()) {
                             return true;
                         } else {
-                            errorDetected.addError("Error: Se esperaba FACTOR_REST después de BOOL_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            errorDetected.addError("Error: Se esperaba FACTOR_REST despues de BOOL_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                         }
                     } else {
                         printDebug("FACTOR -> ( EXPRESSION ) FACTOR_REST");
@@ -1698,13 +1698,13 @@ bool PARAMS_REST() {
                                     if (FACTOR_REST()) {
                                         return true;
                                     } else {
-                                        errorDetected.addError("Error: Se esperaba FACTOR_REST después de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                        errorDetected.addError("Error: Se esperaba FACTOR_REST despues de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                                     }
                                 } else {
                                     errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                                 }
                             } else {
-                                errorDetected.addError("Error: Se esperaba EXPRESSION después de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                errorDetected.addError("Error: Se esperaba EXPRESSION despues de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                             }
                         } else {
                             errorDetected.addError("Error: Se esperaba '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
@@ -1728,13 +1728,13 @@ bool PARAMS_REST() {
                 if (FACTOR_REST()) {
                     return true;
                 } else {
-                    errorDetected.addError("Error: Se esperaba FACTOR_REST después de ']'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    errorDetected.addError("Error: Se esperaba FACTOR_REST despues de ']'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                errorDetected.addError("Error: Se esperaba ']' después de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba ']' despues de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
-            errorDetected.addError("Error: Se esperaba EXPRESSION después de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            errorDetected.addError("Error: Se esperaba EXPRESSION despues de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
         }
     } else {
         printDebug("FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST");
@@ -1747,13 +1747,13 @@ bool PARAMS_REST() {
                     if (FACTOR_REST()) {
                         return true;
                     } else {
-                        errorDetected.addError("Error: Se esperaba FACTOR_REST después de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        errorDetected.addError("Error: Se esperaba FACTOR_REST despues de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                     }
                 } else {
-                    errorDetected.addError("Error: Se esperaba ')' después de EXPR_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    errorDetected.addError("Error: Se esperaba ')' despues de EXPR_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
                 }
             } else {
-                errorDetected.addError("Error: Se esperaba EXPR_LIST después de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba EXPR_LIST despues de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             printDebug("FACTOR_REST -> EOP");
@@ -1867,7 +1867,7 @@ bool CHAR_LITERAL() {
                 goNextToken();
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba ' después del carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba ' despues del carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             errorDetected.addError("Error: Se esperaba un carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
@@ -1889,7 +1889,7 @@ bool STRING_LITERAL() {
                 goNextToken();
                 return true;
             } else {
-                errorDetected.addError("Error: Se esperaba \" después de la cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                errorDetected.addError("Error: Se esperaba \" despues de la cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
             }
         } else {
             errorDetected.addError("Error: Se esperaba una cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));

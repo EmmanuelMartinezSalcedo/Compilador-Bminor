@@ -1,7 +1,7 @@
 integer a; //comentario en linea
 char k = 'b';
 char k = 'x';
-char hola = ' ';
+char hola = 1';
 
 //"asdasdasdsad"; 
 /* COMENTARIO LARGO
