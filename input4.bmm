@@ -1,0 +1,4 @@
+integer a = 12;
+char k = 'b';
+char k = 'x';
+char hola = ' ';

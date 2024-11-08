@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <vector>
 #include <string>
 #include <utility>
@@ -8,6 +9,9 @@
 #include <tuple>
 #include <string.h>
 #include <string>
+#include <set>
+#include <map>
+#include <functional>
 using namespace std;
 
 int mostrar_solo_errores = 0;
@@ -447,16 +451,149 @@ private:
     vector<string> operators;
 };
 
+struct Node {
+    int id;
+    int parentId;
+    string value;
+    string type;
+    vector<int> children;
+    bool includeInAST;
+};
 
+const set<string> nodesToRemove = {
+    "PROGRAM_REST", "TYPE_REST", "PARAMS_REST", "STMT_LIST_REST",
+    "IF_STMT_REST", "EXPR_LIST_REST", "OR_EXPR_REST", "AND_EXPR_REST",
+    "EQ_EXPR_REST", "EQ_EXPR_REST_REST", "REL_EXPR_REST", "REL_EXPR_REST_REST",
+    "EXPR_REST", "EXPR_REST_REST", "TERM_REST", "TERM_REST_REST",
+    "FACTOR_REST", "EOP", "OR_EXPR", "AND_EXPR", "EQ_EXPR", "REL_EXPR",
+    "EXPR", "TERM", "UNARY", "FACTOR"
+};
+
+const set<string> keepNodes = {
+    "PROGRAM", "DECLARATION", "FUNCTION", "IF_STMT", "FOR_STMT",
+    "RETURN_STMT", "PRINT_STMT", "VAR_DECL", "TYPE"
+};
+
+string readCSVField(istream& str) {
+    string result;
+    bool inQuotes = false;
+    char c;
+    
+    while (str.get(c)) {
+        if (c == '"') {
+            if (str.peek() == '"') {
+                str.get();
+                result += '"';
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (c == ',' && !inQuotes) {
+            break;
+        } else {
+            result += c;
+        }
+    }
+    
+    return result;
+}
+
+vector<string> splitCSVLine(const string& line) {
+    vector<string> fields;
+    stringstream ss(line);
+    
+    while (ss.good()) {
+        fields.push_back(readCSVField(ss));
+    }
+    
+    return fields;
+}
+
+void generateAST(const string& inputFile, const string& outputFile) {
+    ifstream inFile(inputFile);
+    string line;
+    map<int, Node> nodes;
+    
+    getline(inFile, line);
+    
+    while (getline(inFile, line)) {
+        vector<string> fields = splitCSVLine(line);
+        
+        if (fields.size() >= 4) {
+            Node node;
+            try {
+                node.id = stoi(fields[0]);
+                node.parentId = stoi(fields[1]);
+                node.value = fields[2];
+                node.type = fields[3];
+                
+                node.includeInAST = node.type == "terminal" || 
+                                  keepNodes.find(node.value) != keepNodes.end();
+                
+                nodes[node.id] = node;
+                
+                // Add child to parent's children list
+                if (node.parentId >= 0) {
+                    nodes[node.parentId].children.push_back(node.id);
+                }
+            } catch (const exception& e) {
+                cerr << "Error processing line: " << line << "\nError: " << e.what() << endl;
+                continue;
+            }
+        } else {
+            continue;
+        }
+    }
+    
+    function<int(int)> findNextParent = [&](int currentId) -> int {
+        Node& node = nodes[currentId];
+        if (node.parentId < 0) return -1;
+        
+        Node& parent = nodes[node.parentId];
+        if (parent.includeInAST) {
+            return parent.id;
+        }
+        return findNextParent(parent.id);
+    };
+    ofstream outFile(outputFile);
+    outFile << "ID,PadreID,Valor,Tipo\n";
+    
+    for (const auto& pair : nodes) {
+        const Node& node = pair.second;
+        if (node.includeInAST) {
+            int newParentId = findNextParent(node.id);
+            
+            string escapedValue = node.value;
+            bool needsQuotes = escapedValue.find(',') != string::npos || 
+                             escapedValue.find('"') != string::npos;
+            
+            if (needsQuotes) {
+                string quoted = "\"";
+                for (char c : escapedValue) {
+                    if (c == '"') quoted += "\"\"";
+                    else quoted += c;
+                }
+                quoted += "\"";
+                escapedValue = quoted;
+            }
+            
+            outFile << node.id << ","
+                   << newParentId << ","
+                   << escapedValue << ","
+                   << node.type << "\n";
+        }
+    }
+}
 
 class Parser {
 public:
-
     vector<tuple<string, string, int, int>> tokens;
     const char* cursor;
     int index;
     bool debug;
     int tab = 0;
+
+    int currentID = 0;
+    vector<tuple<int, int, string, string>> tempNodes;
 
     Parser(vector<tuple<string, string, int, int>>& tkns, bool dbg) {
         tokens = tkns;
@@ -464,7 +601,13 @@ public:
         index = 0;
         debug = dbg;
 
-        if (PROGRAM()) {
+        ofstream file("parseTree.csv", ios::trunc);
+        file << "ID,PadreID,Valor,Tipo\n";
+        file.close();
+
+        if (PROGRAM(-1)) {
+            writeTreeToFile();
+            generateAST("parseTree.csv", "astTree.csv");
             cout << "Successful parse" << endl;
         } else {
             cout << "Error parsing in line " << get<2>(tokens[index]) << ", column " << get<3>(tokens[index]) << endl;
@@ -472,23 +615,27 @@ public:
     }
 
 private:
+    void printTempNodes() {
+        cout << "ID\tParentID\tValue\tType" << endl;
+        cout << "------------------------------------------" << endl;
+
+        for (const auto& node : tempNodes) {
+            int id = get<0>(node);
+            int parentID = get<1>(node);
+            string value = get<2>(node);
+            string type = get<3>(node);
+
+            cout << id << "\t" << parentID << "\t\t" << value << "\t" << type << endl;
+        }
+    }
 
     bool checkToken(const string& token) {
         int tokenSize = token.size();
-
         for (int i = 0; i < tokenSize; i++) {
-            for (int i = 0; i < tab; i++) {
-                cout << ' ';
-            }
-            if (cursor[i] == token[i]) {
-                cout << cursor[i] << " = " << token[i] << endl;
-            }
             if (cursor[i] != token[i]) {
-                
                 return false;
             }
         }
-        
         return true;
     }
 
@@ -497,18 +644,12 @@ private:
             index++;
             cursor = get<1>(tokens[index]).c_str(); 
         }
-        cout << "------------- NEXT TOKEN -------------" << endl;
-        cout << get<1>(tokens[index]) << endl;
-        cout << "----------------------------------------" << endl;
     }
 
     bool checkTokenType(const string& tokenType) {
-        if (get<0>(tokens[index]) == tokenType) {
-            cout << "-----> " << get<1>(tokens[index]) << "-" << tokenType << " <-----" << endl;
-            return true;
-        }
-        return false;
+        return (get<0>(tokens[index]) == tokenType);
     }
+    
     void printDebug(string s) {
         if (debug) {
             for (int i = 0; i < tab; i++) {
@@ -519,64 +660,127 @@ private:
         //tab++;
     }
 
-    bool PROGRAM() {
+    void addNode(int id, int padreID, const string& value, const string& tokenType) {
+        tempNodes.push_back(make_tuple(id, padreID, value, tokenType));
+    }
+
+    void writeTreeToFile() {
+        ofstream file("parseTree.csv", ios::app);
+        if (file.is_open()) {
+            for (const auto& node : tempNodes) {
+                file << get<0>(node) << "," 
+                     << get<1>(node) << "," 
+                     << get<2>(node) << "," 
+                     << get<3>(node) << "\n";
+            }
+            file.close();
+        } else {
+            cerr << "Error al abrir el archivo: parseTree.csv" << endl;
+        }
+    }
+    
+    class ScopeGuard {
+        Parser& parser;
+        size_t savedSize;
+        bool committed;
+        
+    public:
+        ScopeGuard(Parser& p) : parser(p), savedSize(p.tempNodes.size()), committed(false) {}
+
+        void commit() {
+            committed = true;
+        }
+        
+        ~ScopeGuard() {
+            if (!committed) {
+                parser.tempNodes.resize(savedSize);
+            }
+        }
+    };
+
+    bool PROGRAM(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "PROGRAM", "non-terminal");
+
         printDebug("PROGRAM -> DECLARATION PROGRAM_REST");
         /* PROGRAM -> DECLARATION PROGRAM_REST */
-        if (DECLARATION()) {
-            if (PROGRAM_REST()) {
-                cout << "PARSE ENDED IN " << get<0>(tokens[index]) << ' ' << get<1>(tokens[index]) << ' ' << get<2>(tokens[index]) << ' ' << get<3>(tokens[index]) <<endl;
-                if (index != tokens.size() - 1) {
-                    cout << "Failure parsing";
-                    return false;
+        if (DECLARATION(myID)) {
+            if (PROGRAM_REST(myID)) {
+                if (index == tokens.size() - 1) {
+                    guard.commit();
+                    return true;
                 }
-                return true;
             }
         }
         return false;
     }
 
-    bool PROGRAM_REST() {
+    bool PROGRAM_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "PROGRAM_REST", "non-terminal");
+
         printDebug("PROGRAM_REST -> DECLARATION PROGRAM_REST");
         /* PROGRAM_REST -> DECLARATION PROGRAM_REST*/
-        if (DECLARATION()) {
-            if (PROGRAM_REST()) {
+        if (DECLARATION(myID)) {
+            if (PROGRAM_REST(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("PROGRAM_REST -> EOP");
         /* PROGRAM_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool DECLARATION() {
+    bool DECLARATION(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "DECLARATION", "non-terminal");
+
         printDebug("DECLARATION -> FUNCTION DECLARATION_REST");
         /* DECLARATION -> FUNCTION DECLARATION_REST*/
-        if (FUNCTION()) {
-            if (DECLARATION_REST()) {
+        if (FUNCTION(myID)) {
+            if (DECLARATION_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
     
-    bool DECLARATION_REST() {
+    bool DECLARATION_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "DECLARATION_REST", "non-terminal");
+
         printDebug("DECLARATION_REST -> ( PARAMS ) { STMT_LIST }");
         /* DECLARATION_REST -> ( PARAMS ) { STMT_LIST }  */
         if (checkToken("(")) {
+            int openParID = currentID++;
+            addNode(openParID, myID, "(", "terminal");
             goNextToken();
-            if (PARAMS()) {
+            if (PARAMS(myID)) {
                 if (checkToken(")")) {
+                    int closeParID = currentID++;
+                    addNode(closeParID, myID, ")", "terminal");
                     goNextToken();
                     if (checkToken("{")) {
+                        int openBraceID = currentID++;
+                        addNode(openBraceID, myID, "{", "terminal");
                         goNextToken();
-                        if (STMT_LIST()) {
+                        if (STMT_LIST(myID)) {
                             if (checkToken("}")) {
+                                int closeBraceID = currentID++;
+                                addNode(closeBraceID, myID, "}", "terminal");
                                 goNextToken();
+                                guard.commit();
                                 return true;
                             }
                         }
@@ -584,71 +788,80 @@ private:
                 }
             }
         } else {
-            
             printDebug("DECLARATION_REST -> VAR_DECL");
         /* DECLARATION_REST -> VAR_DECL  */
-            if (VAR_DECL()) {
+            if (VAR_DECL(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool FUNCTION() {
+    bool FUNCTION(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "FUNCTION", "non-terminal");
+
         printDebug("FUNCTION -> TYPE IDENTIFIER");
         /* FUNCTION -> TYPE IDENTIFIER */
-        if (TYPE()) {
-            if (IDENTIFIER()) {
+        if (TYPE(myID)) {
+            if (IDENTIFIER(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool TYPE() {
+    bool TYPE(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "TYPE", "non-terminal");
+
         printDebug("TYPE -> INT_TYPE TYPE_REST");
         /* TYPE -> INT_TYPE TYPE_REST */
-        if (INT_TYPE()) {
-            if (TYPE_REST()) {
+        if (INT_TYPE(myID)) {
+            if (TYPE_REST(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("TYPE -> BOOL_TYPE TYPE_REST");
         /* TYPE -> BOOL_TYPE TYPE_REST */
-            if (BOOL_TYPE()) {
-                if (TYPE_REST()) {
+            if (BOOL_TYPE(myID)) {
+                if (TYPE_REST(myID)) {
+                    guard.commit();
                     return true;
                 }
             }
             else {
-                
                 printDebug("TYPE -> CHAR_TYPE TYPE_REST");
         /* TYPE -> CHAR_TYPE TYPE_REST*/
-                if (CHAR_TYPE()) {
-                    if (TYPE_REST()) {
+                if (CHAR_TYPE(myID)) {
+                    if (TYPE_REST(myID)) {
+                        guard.commit();
                         return true;
                     }
                 }
                 else {
-                    
                     printDebug("TYPE -> STRING_TYPE TYPE_REST");
         /* TYPE -> STRING_TYPE TYPE_REST*/
-                    if (STRING_TYPE()) {
-                        if (TYPE_REST()) {
+                    if (STRING_TYPE(myID)) {
+                        if (TYPE_REST(myID)) {
+                            guard.commit();
                             return true;
                         }
                     }
                     else {
-                        
                         printDebug("TYPE -> VOID_TYPE TYPE_REST");
         /* TYPE -> VOID_TYPE TYPE_REST */
-                        if (VOID_TYPE()) {
-                            if (TYPE_REST()) {
+                        if (VOID_TYPE(myID)) {
+                            if (TYPE_REST(myID)) {
+                                guard.commit();
                                 return true;
                             }
                         }
-                    
                     }
                 }
             }
@@ -656,92 +869,106 @@ private:
         return false;
     }
 
-    bool TYPE_REST() {
+    bool TYPE_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "TYPE_REST", "non-terminal");
+
         printDebug("TYPE_REST -> [ ] TYPE_REST");
         /* TYPE_REST -> [ ] TYPE_REST */  
         if (checkToken("[")) {
+            int openBracketID = currentID++;
+            addNode(openBracketID, myID, "[", "terminal");
             goNextToken();
             if (checkToken("]")) {
+                int closeBracketID = currentID++;
+                addNode(closeBracketID, myID, "]", "terminal");
                 goNextToken();
-                if (TYPE_REST()) {
+                if (TYPE_REST(myID)) {
+                    guard.commit();
                     return true;
                 }
             }
         } else {
-            
             printDebug("TYPE_REST -> EOP");
         /* TYPE_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool PARAMS() {
+    bool PARAMS(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "PARAMS", "non-terminal");
+
         printDebug("PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> INT_TYPE TYPE_REST IDENTIFIER PARAMS_REST*/
-        if (INT_TYPE()) {
-            if (TYPE_REST()) {
-                if (IDENTIFIER()) {
-                    if (PARAMS_REST()) {
+        if (INT_TYPE(myID)) {
+            if (TYPE_REST(myID)) {
+                if (IDENTIFIER(myID)) {
+                    if (PARAMS_REST(myID)) {
+                        guard.commit();
                         return true;
                     }
                 }
             }
         } else {
-            
             printDebug("PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST*/
-            if (BOOL_TYPE()) {
-                if (TYPE_REST()) {
-                    if (IDENTIFIER()) {
-                        if (PARAMS_REST()) {
+            if (BOOL_TYPE(myID)) {
+                if (TYPE_REST(myID)) {
+                    if (IDENTIFIER(myID)) {
+                        if (PARAMS_REST(myID)) {
+                            guard.commit();
                             return true;
                         }
                     }
                 }
             } else {
-                
                 printDebug("PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-                if (CHAR_TYPE()) {
-                    if (TYPE_REST()) {
-                        if (IDENTIFIER()) {
-                            if (PARAMS_REST()) {
+                if (CHAR_TYPE(myID)) {
+                    if (TYPE_REST(myID)) {
+                        if (IDENTIFIER(myID)) {
+                            if (PARAMS_REST(myID)) {
+                                guard.commit();
                                 return true;
                             }
                         }
                     }
                 } else {
-                    
                     printDebug("PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-                    if (STRING_TYPE()) {
-                        if (TYPE_REST()) {
-                            if (IDENTIFIER()) {
-                                if (PARAMS_REST()) {
+                    if (STRING_TYPE(myID)) {
+                        if (TYPE_REST(myID)) {
+                            if (IDENTIFIER(myID)) {
+                                if (PARAMS_REST(myID)) {
+                                    guard.commit();
                                     return true;
                                 }
                             }
                         }
                     } else {
-                        
                         printDebug("PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
         /* PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST */
-                        if (VOID_TYPE()) {
-                            if (TYPE_REST()) {
-                                if (IDENTIFIER()) {
-                                    if (PARAMS_REST()) {
+                        if (VOID_TYPE(myID)) {
+                            if (TYPE_REST(myID)) {
+                                if (IDENTIFIER(myID)) {
+                                    if (PARAMS_REST(myID)) {
+                                        guard.commit();
                                         return true;
                                     }
                                 }
                             }
-                        } else {
-                            
+                        } else {   
                             printDebug("PARAMS -> EOP");
         /* PARAMS -> EOP */
-                            if (EOP()) {
+                            if (EOP(myID)) {
+                                guard.commit();
                                 return true;
                             }
                         }
@@ -752,40 +979,58 @@ private:
         return false;
     }
 
-    bool PARAMS_REST() {
+    bool PARAMS_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "PARAMS_REST", "non-terminal");
+
         printDebug("PARAMS_REST -> , PARAMS");
         /* PARAMS_REST -> , PARAMS */
         if (checkToken(",")) {
+            int commaID = currentID++;
+            addNode(commaID, myID, ",", "terminal");
             goNextToken();
-            if (PARAMS()) {
+            if (PARAMS(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("PARAMS_REST -> EOP");
         /* PARAMS_REST -> EOP  */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool VAR_DECL() {
+    bool VAR_DECL(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "VAR_DECL", "non-terminal");
+
         printDebug("VAR_DECL -> ;");
         /* VAR_DECL-> ; */
         if (checkToken(";")) {
+            int semicolonID = currentID++;
+            addNode(semicolonID, myID, ";", "terminal");
             goNextToken();
+            guard.commit();
             return true;
         } else  {
-            
             printDebug("VAR_DECL -> = EXPRESSION ;");
         /* VAR_DECL-> = EXPRESSION ; */
             if (checkToken("=")) {
+                int equalID = currentID++;
+                addNode(equalID, myID, "=", "terminal");
                 goNextToken();
-                if (EXPRESSION()) {
+                if (EXPRESSION(myID)) {
                     if (checkToken(";")) {
+                        int semicolonID = currentID++;
+                        addNode(semicolonID, myID, ";", "terminal");
                         goNextToken();
+                        guard.commit();
                         return true;
                     }
                 }
@@ -794,81 +1039,100 @@ private:
         return false;
     }
 
-    bool STMT_LIST() {
+    bool STMT_LIST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "STMT_LIST", "non-terminal");
+
         printDebug("STMT_LIST -> STATEMENT STMT_LIST_REST");
         /* STMT_LIST -> STATEMENT STMT_LIST_REST */
-        if (STATEMENT()) {
-            if (STMT_LIST_REST()) {
+        if (STATEMENT(myID)) {
+            if (STMT_LIST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     };
 
-    bool STMT_LIST_REST() {
+    bool STMT_LIST_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "STMT_LIST_REST", "non-terminal");
+
         printDebug("STMT_LIST_REST -> STATEMENT STMT_LIST_REST");
         /* STMT_LIST_REST -> STATEMENT STMT_LIST_REST */
-        if (STATEMENT()) {
-            if (STMT_LIST_REST()) {
+        if (STATEMENT(myID)) {
+            if (STMT_LIST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("STMT_LIST_REST -> EOP");
         /* STMT_LIST_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool STATEMENT() {
+    bool STATEMENT(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "STATEMENT", "non-terminal");
+
         /* STATEMENT -> FUNCTIONVAR_DECL */
         printDebug("STATEMENT -> FUNCTION VAR_DECL");
-        if (FUNCTION()) {
-            if (VAR_DECL()) {
+        if (FUNCTION(myID)) {
+            if (VAR_DECL(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("STATEMENT -> IF_STMT");
         /* STATEMENT -> IF_STMT */
-            if (IF_STMT()) {
+            if (IF_STMT(myID)) {
+                guard.commit();
                 return true;
             } else {
-                
                 printDebug("STATEMENT -> FOR_STMT");
         /* STATEMENT -> FOR_STMT */
-                if (FOR_STMT()) {
+                if (FOR_STMT(myID)) {
+                    guard.commit();
                     return true;
                 } else {
-                    
                     printDebug("STATEMENT -> RETURN_STMT");
         /* STATEMENT -> RETURN_STMT */
-                    if (RETURN_STMT()) {
+                    if (RETURN_STMT(myID)) {
+                        guard.commit();
                         return true;
                     } else {
-                        
                         printDebug("STATEMENT -> EXPR_STMT");
         /* STATEMENT -> EXPR_STMT */
-                        if (EXPR_STMT()) {
+                        if (EXPR_STMT(myID)) {
+                            guard.commit();
                             return true;
                         } else {
-                            
                             printDebug("STATEMENT -> PRINT_STMT");
         /* STATEMENT -> PRINT_STMT */
-                            if (PRINT_STMT()) {
+                            if (PRINT_STMT(myID)) {
+                                guard.commit();
                                 return true;
                             } else {
-                                
                                 printDebug("{ STMT_LIST }");
         /* STATEMENT -> { STMT_LIST } */
                                 if (checkToken("{")) {
+                                    int openCurlyBracesID = currentID++;
+                                    addNode(openCurlyBracesID, myID, "{", "terminal");
                                     goNextToken();
-                                    if (STMT_LIST()) {
+                                    if (STMT_LIST(myID)) {
                                         if (checkToken("}")) {
+                                            int closeCurlyBracesID = currentID++;
+                                            addNode(closeCurlyBracesID, myID, "}", "terminal");
                                             goNextToken();
+                                            guard.commit();
                                             return true;
                                         }
                                     }
@@ -882,23 +1146,37 @@ private:
         return false;
     }
 
-    bool IF_STMT() {
+    bool IF_STMT(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "IF_STMT", "non-terminal");
+
         printDebug("IF_STMT -> if ( EXPRESSION ) { STMT_LIST } IF_STMT_REST");
         /* IF_STMT -> if ( EXPRESSION ) { STMT_LIST } IF_STMT_REST */
         if (checkToken("if")) {
+            int ifID = currentID++;
+            addNode(ifID, myID, "if", "terminal");
             goNextToken();
             if (checkToken("(")) {
+                int openParID = currentID++;
+                addNode(openParID, myID, "(", "terminal");
                 goNextToken();
-                if (EXPRESSION()) {
+                if (EXPRESSION(myID)) {
                     if (checkToken(")")) {
+                        int closeParID = currentID++;
+                        addNode(closeParID, myID, ")", "terminal");
                         goNextToken();
                         if (checkToken("{")) {
+                            int openCurlyBracesID = currentID++;
+                            addNode(openCurlyBracesID, myID, "{", "terminal");
                             goNextToken();
-                            if (STMT_LIST()) {
-                                cout << get<1>(tokens[index]) << "------------" << endl;                                 
+                            if (STMT_LIST(myID)) {                            
                                 if (checkToken("}")) {
+                                    int closeCurlyBracesID = currentID++;
+                                    addNode(closeCurlyBracesID, myID, "}", "terminal");
                                     goNextToken();
-                                    if (IF_STMT_REST()) {
+                                    if (IF_STMT_REST(myID)) {
+                                        guard.commit();
                                         return true;
                                     }
                                 }
@@ -911,49 +1189,78 @@ private:
         return false;
     }
 
-    bool IF_STMT_REST() {
+    bool IF_STMT_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "IF_STMT_REST", "non-terminal");
+
         printDebug("IF_STMT_REST -> else { STMT_LIST }");
         /* IF_STMT_REST -> else { STMT_LIST } */
         if (checkToken("else")) {
+            int elseID = currentID++;
+            addNode(elseID, myID, "else", "terminal");
             goNextToken();
             if (checkToken("{")) {
+                int openCurlyBracesID = currentID++;
+                addNode(openCurlyBracesID, myID, "{", "terminal");
                 goNextToken();
-                if (STMT_LIST()) {
+                if (STMT_LIST(myID)) {
                     if (checkToken("}")) {
+                        int closeCurlyBracesID = currentID++;
+                        addNode(closeCurlyBracesID, myID, "}", "terminal");
+                        goNextToken();
+                        guard.commit();
                         return true;
                     }
                 }
             }
         } else {
-            
             printDebug("IF_STMT_REST -> EOP");
         /* IF_STMT_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool FOR_STMT() {
+    bool FOR_STMT(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "FOR_STMT", "non-terminal");
+
         printDebug("FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STMT_LIST }");
         /* FOR_STMT -> for ( EXPR_STMT EXPRESSION ; EXPR_STMT ) { STMT_LIST } */
         if (checkToken("for")) {
+            int forID = currentID++;
+            addNode(forID, myID, "for", "terminal");
             goNextToken();
             if (checkToken("(")) {
+                int openParID = currentID++;
+                addNode(openParID, myID, "(", "terminal");
                 goNextToken();
-                if (EXPR_STMT()) {
-                    if (EXPRESSION()) {
+                if (EXPR_STMT(myID)) {
+                    if (EXPRESSION(myID)) {
                         if (checkToken(";")) {
+                            int semicolonID = currentID++;
+                            addNode(semicolonID, myID, ";", "terminal");
                             goNextToken();
-                            if (EXPR_STMT()) {
+                            if (EXPR_STMT(myID)) {
                                 if (checkToken(")")) {
+                                    int closeParID = currentID++;
+                                    addNode(closeParID, myID, ")", "terminal");
                                     goNextToken();
                                     if (checkToken("{")) {
+                                        int openCurlyBracesID = currentID++;
+                                        addNode(openCurlyBracesID, myID, "{", "terminal");
                                         goNextToken();
-                                        if (STMT_LIST()) {
+                                        if (STMT_LIST(myID)) {
                                             if (checkToken("}")) {
+                                                int closeCurlyBracesID = currentID++;
+                                                addNode(closeCurlyBracesID, myID, "}", "terminal");
                                                 goNextToken();
+                                                guard.commit();
                                                 return true;
                                             }
                                         }
@@ -968,14 +1275,23 @@ private:
         return false;
     }
 
-    bool RETURN_STMT() {
+    bool RETURN_STMT(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "RETURN_STMT", "non-terminal");
+
         printDebug("RETURN_STMT -> return EXPRESSION ;");
         /* RETURN_STMT -> return EXPRESSION ; */
         if (checkToken("return")) {
+            int returnID = currentID++;
+            addNode(returnID, myID, "return", "terminal");
             goNextToken();
-            if (EXPRESSION()) {
+            if (EXPRESSION(myID)) {
                 if (checkToken(";")) {
+                    int semicolonID = currentID++;
+                    addNode(semicolonID, myID, ";", "terminal");
                     goNextToken();
+                    guard.commit();
                     return true;
                 }
             }
@@ -983,18 +1299,31 @@ private:
         return false;
     }
 
-    bool PRINT_STMT() {
+    bool PRINT_STMT(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "PRINT_STMT", "non-terminal");
+
         printDebug("PRINT_STMT -> print ( EXPR_LIST ) ;");
         /* PRINT_STMT -> print ( EXPR_LIST ) ; */
         if (checkToken("print")) {
+            int printID = currentID++;
+            addNode(printID, myID, "print", "terminal"); 
             goNextToken();
             if (checkToken("(")) {
+                int openParID = currentID++;
+                addNode(openParID, myID, "(", "terminal");
                 goNextToken();
-                if (EXPR_LIST()) {
+                if (EXPR_LIST(myID)) {
                     if (checkToken(")")) {
+                        int closeParID = currentID++;
+                        addNode(closeParID, myID, ")", "terminal");
                         goNextToken();
                         if (checkToken(";")) {
+                            int semicolonID = currentID++;
+                            addNode(semicolonID, myID, ";", "terminal");
                             goNextToken();
+                            guard.commit();
                             return true;
                         }
                     }
@@ -1004,179 +1333,252 @@ private:
         return false;
     }
 
-    bool EXPR_STMT() {
+    bool EXPR_STMT(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EXPR_STMT", "non-terminal");
+
         printDebug("EXPR_STMT -> EXPRESSION ;");
         /* EXPR_STMT -> EXPRESSION ; */
-        if (EXPRESSION()) {
+        if (EXPRESSION(myID)) {
             if (checkToken(";")) {
+                int semicolonID = currentID++;
+                addNode(semicolonID, myID, ";", "terminal");
                 goNextToken();
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("EXPR_STMT -> ;");
             /* EXPR_STMT -> ; */
             if (checkToken(";")) {
+                int semicolonID = currentID++;
+                addNode(semicolonID, myID, ";", "terminal");
                 goNextToken();
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool EXPR_LIST() {
+    bool EXPR_LIST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EXPR_LIST", "non-terminal");
+
         printDebug("EXPR_LIST -> EXPRESSION EXPR_LIST_REST");
         /* EXPR_LIST -> EXPRESSION EXPR_LIST_REST */
-        if (EXPRESSION()) {
-            if (EXPR_LIST_REST()) {
+        if (EXPRESSION(myID)) {
+            if (EXPR_LIST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool EXPR_LIST_REST() {
+    bool EXPR_LIST_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EXPR_LIST_REST", "non-terminal");
+
         printDebug("EXPR_LIST_REST -> , EXPR_LIST");
         /* EXPR_LIST_REST -> , EXPR_LIST */
         if (checkToken(",")) {
+            int commaID = currentID++;
+            addNode(commaID, myID, ",", "terminal");
             goNextToken();
-            if (EXPR_LIST()) {
+            if (EXPR_LIST(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("EXPR_LIST_REST -> EOP");
         /* EXPR_LIST_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool EXPRESSION() {
-        printDebug("EXPRESSION -> IDENTIFIER = EXPRESSION");
-        /* EXPRESSION -> IDENTIFIER = EXPRESSION */
-        bool flag = false;
-        int state = index;
-        if (IDENTIFIER()) {
+    bool EXPRESSION(int parentID) {
+    ScopeGuard guard(*this);
+    int myID = currentID++;
+    addNode(myID, parentID, "EXPRESSION", "non-terminal");
+
+    printDebug("EXPRESSION -> IDENTIFIER = EXPRESSION");
+    /* EXPRESSION -> IDENTIFIER = EXPRESSION */
+    {
+        ScopeGuard assignmentGuard(*this);
+        int savedIndex = index;
+        
+        if (IDENTIFIER(myID)) {
             if (checkToken("=")) {
+                int equalID = currentID++;
+                addNode(equalID, myID, "=", "terminal");
                 goNextToken();
-                if (EXPRESSION()) {
+                
+                if (EXPRESSION(myID)) {
+                    assignmentGuard.commit();
+                    guard.commit();
                     return true;
-                } else {
-                    flag = true;
                 }
-            } else {
-                flag = true;
-            }
-        } else {
-            flag = true;
-        }
-        if (flag) {
-            index = state;
-            
-            printDebug("EXPRESSION -> OR_EXPR");
-        /* EXPRESSION -> OR_EXPR */
-            if (OR_EXPR()) {
-                return true;
             }
         }
-        return false;
+
+        index = savedIndex;
     }
 
-    bool OR_EXPR() {
+    {
+        ScopeGuard orExprGuard(*this);
+        printDebug("EXPRESSION -> OR_EXPR");
+    /* EXPRESSION -> OR_EXPR */
+
+        addNode(myID, parentID, "EXPRESSION", "non-terminal");
+        
+        if (OR_EXPR(myID)) {
+            orExprGuard.commit();
+            guard.commit();
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+    bool OR_EXPR(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "OR_EXPR", "non-terminal");
+
         printDebug("OR_EXPR -> AND_EXPR OR_EXPR_REST");
         /* OR_EXPR -> AND_EXPR OR_EXPR_REST */
-        if (AND_EXPR()) {
-            if (OR_EXPR_REST()) {
+        if (AND_EXPR(myID)) {
+            if (OR_EXPR_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool OR_EXPR_REST() {
+    bool OR_EXPR_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "OR_EXPR_REST", "non-terminal");
+
         printDebug("OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST");
         /* OR_EXPR_REST -> || AND_EXPR OR_EXPR_REST */
         if (checkToken("||")) {
+            int orID = currentID++;
+            addNode(orID, myID, "||", "terminal");
             goNextToken();
-            if (AND_EXPR()) {
-                if (OR_EXPR_REST()) {
+            if (AND_EXPR(myID)) {
+                if (OR_EXPR_REST(myID)) {
+                    guard.commit();
                     return true;
                 }
             }
         } else {
-            
             printDebug("OR_EXPR_REST -> EOP");
         /* OR_EXPR_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool AND_EXPR() {
+    bool AND_EXPR(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "AND_EXPR", "non-terminal");
+
         printDebug("AND_EXPR -> EQ_EXPR AND_EXPR_REST");
         /* AND_EXPR -> EQ_EXPR AND_EXPR_REST */
-        if (EQ_EXPR()) {
-            if (AND_EXPR_REST()) {
+        if (EQ_EXPR(myID)) {
+            if (AND_EXPR_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool AND_EXPR_REST() {
+    bool AND_EXPR_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "AND_EXPR_REST", "non-terminal");
+
         printDebug("AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST");
         /* AND_EXPR_REST -> && EQ_EXPR AND_EXPR_REST */
         if (checkToken("&&")) {
+            int andID = currentID++;
+            addNode(andID, myID, "&&", "terminal");
             goNextToken();
-            if (EQ_EXPR()) {
-                if (AND_EXPR_REST()) {
+            if (EQ_EXPR(myID)) {
+                if (AND_EXPR_REST(myID)) {
+                    guard.commit();
                     return true;
                 }
             }
         } else {
-            
             printDebug("AND_EXPR_REST -> EOP");
         /* AND_EXPR_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool EQ_EXPR() {
+    bool EQ_EXPR(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EQ_EXPR", "non-terminal");
+
         printDebug("EQ_EXPR -> REL_EXPR EQ_EXPR_REST_REST");
         /* EQ_EXPR -> EXPR EQ_EXPR_REST_REST */
-        if (REL_EXPR()) {
-            if (EQ_EXPR_REST_REST()) {
+        if (REL_EXPR(myID)) {
+            if (EQ_EXPR_REST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool EQ_EXPR_REST() {
+    bool EQ_EXPR_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EQ_EXPR_REST", "non-terminal");
+
         printDebug("EQ_EXPR_REST -> == REL_EXPR");
         /* EQ_EXPR_REST -> == REL_EXPR*/
         if (checkToken("==")) {
+            int equalID = currentID++;
+            addNode(equalID, myID, "==", "terminal");
             goNextToken();
-            if (REL_EXPR()) {
-                if (EQ_EXPR_REST()) {
+            if (REL_EXPR(myID)) {
+                if (EQ_EXPR_REST(myID)) {
+                    guard.commit();
                     return true;
                 }
             }
         } else {
-            
             printDebug("EQ_EXPR_REST -> != REL_EXPR");
         /* EQ_EXPR_REST -> != REL_EXPR*/
             if (checkToken("!=")) {
+                int notEqualID = currentID++;
+                addNode(notEqualID, myID, "!=", "terminal");
                 goNextToken();
-                if (REL_EXPR()) {
+                if (REL_EXPR(myID)) {
+                    guard.commit();
                     return true;
                 }
             }
@@ -1184,69 +1586,92 @@ private:
         return false;
     }
 
-    bool EQ_EXPR_REST_REST() {
+    bool EQ_EXPR_REST_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EQ_EXPR_REST_REST", "non-terminal");
+
         printDebug("EQ_EXPRT_REST_REST -> EQ_EXPR_REST EQ_EXPR_REST_REST");
         /* EQ_EXPR_REST_REST -> EQ_EXPR_REST EQ_EXPR_REST_REST */
-        if (EQ_EXPR_REST()) {
-            if (EQ_EXPR_REST_REST()) {
+        if (EQ_EXPR_REST(myID)) {
+            if (EQ_EXPR_REST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         else {
-            
             printDebug("EQ_EXPR_REST_REST -> EOP");
         /* EQ_EXPR_REST_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool REL_EXPR() {
+    bool REL_EXPR(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "REL_EXPR", "non-terminal");
+
         printDebug("REL_EXPR -> EXPR REL_EXPR_REST_REST");
         /* REL_EXPR -> EXPR REL_EXPR_REST_REST */
-        if (EXPR()) {
-            if (REL_EXPR_REST_REST()) {
+        if (EXPR(myID)) {
+            if (REL_EXPR_REST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool REL_EXPR_REST() {
+    bool REL_EXPR_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "REL_EXPR_REST", "non-terminal");
+
         printDebug("REL_EXPR_REST -> < EXPR");
         /* REL_EXPR_REST -> < EXPR */
         if (checkToken("<")) {
+            int lessID = currentID++;
+            addNode(lessID, myID, "<", "terminal");
             goNextToken();
-            if (EXPR()) {
+            if (EXPR(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("REL_EXPR_REST -> > EXPR");
         /* REL_EXPR_REST -> > EXPR */
             if (checkToken(">")) {
+                int greaterID = currentID++;
+                addNode(greaterID, myID, ">", "terminal");
                 goNextToken();
-                if (EXPR()) {
+                if (EXPR(myID)) {
+                    guard.commit();
                     return true;
                 }
             } else {
-                
                 printDebug("REL_EXPR_REST -> <= EXPR");
         /* REL_EXPR_REST -> <= EXPR */
                 if (checkToken("<=")) {
+                    int lessOrEqualID = currentID++;
+                    addNode(lessOrEqualID, myID, "<=", "terminal");
                     goNextToken();
-                    if (EXPR()) {
+                    if (EXPR(myID)) {
+                        guard.commit();
                         return true;
                     }
                 } else {
-                    
                     printDebug("REL_EXPR_REST -> >= EXPR");
         /* REL_EXPR_REST -> >= EXPR */
                     if (checkToken(">=")) {
+                        int greaterOrEqualID = currentID++;
+                        addNode(greaterOrEqualID, myID, ">=", "terminal");
                         goNextToken();
-                        if (EXPR()) {
+                        if (EXPR(myID)) {
+                            guard.commit();
                             return true;
                         }
                     }
@@ -1256,51 +1681,70 @@ private:
         return false;
     }
 
-    bool REL_EXPR_REST_REST() {
+    bool REL_EXPR_REST_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "REL_EXPR_REST_REST", "non-terminal");
+
         printDebug("REL_EXPR_REST_REST -> REL_EXPR_REST REL_EXPR_REST_REST");
         /* REL_EXPR_REST_REST -> REL_EXPR_REST REL_EXPR_REST_REST */
-        if (REL_EXPR_REST()) {
-            if (REL_EXPR_REST_REST()) {
+        if (REL_EXPR_REST(myID)) {
+            if (REL_EXPR_REST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         else {
-            
             printDebug("REL_EXPR_REST_REST -> EOP");
         /* EXPR_REST_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool EXPR() {
+    bool EXPR(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EXPR", "non-terminal");
+
         printDebug("EXPR -> TERM EXPR_REST_REST");
         /* EXPR -> TERM EXPR_REST_REST */
-        if (TERM()) {
-            if (EXPR_REST_REST()) {
+        if (TERM(myID)) {
+            if (EXPR_REST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool EXPR_REST() {
+    bool EXPR_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EXPR_REST", "non-terminal");
+
         printDebug("EXPR_REST -> + TERM");
         /* EXPR_REST -> + TERM */
         if (checkToken("+")) {
+            int plusID = currentID++;
+            addNode(plusID, myID, "+", "terminal");
             goNextToken();
-            if (TERM()) {
+            if (TERM(myID)) {
+                guard.commit();
                 return true;
             }
         }
         else {
-            
             printDebug("EXPR_REST -> - TERM");
             if (checkToken("-")) {
+                int minusID = currentID++;
+                addNode(minusID, myID, "-", "terminal");
                 goNextToken(); 
-                if (TERM()) {
+                if (TERM(myID)) {
+                    guard.commit();
                     return true;
                 }
             }
@@ -1308,60 +1752,81 @@ private:
         return false;
     }
 
-    bool EXPR_REST_REST() {
+    bool EXPR_REST_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "EXPR_REST_REST", "non-terminal");
+
         printDebug("EXPR_REST_REST -> EXPR_REST EXPR_REST_REST");
         /* EXPR_REST_REST -> EXPR_REST EXPR_REST_REST */
-        if (EXPR_REST()) {
-            if (EXPR_REST_REST()) {
+        if (EXPR_REST(myID)) {
+            if (EXPR_REST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         else {
-            
             printDebug("EXPR_REST_REST -> EOP");
         /* EXPR_REST_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool TERM() {
+    bool TERM(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "TERM", "non-terminal");
+
         printDebug("TERM -> UNARY TERM_REST_REST");
         /* TERM -> UNARY TERM_REST_REST */
-        if (UNARY()) {
-            if (TERM_REST_REST()) {
+        if (UNARY(myID)) {
+            if (TERM_REST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         return false;
     }
 
-    bool TERM_REST() {
+    bool TERM_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "TERM_REST", "non-terminal");
+
         printDebug("TERM_REST -> * UNARY");
         /* TERM_REST -> * UNARY */
         if (checkToken("*")) {
+            int timesID = currentID++;
+            addNode(timesID, myID, "*", "terminal");
             goNextToken();
-            if (UNARY()) {
+            if (UNARY(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("TERM_REST -> / UNARY");
         /* TERM_REST -> / UNARY */
             if (checkToken("/")) {
+                int dividedID = currentID++;
+                addNode(dividedID, myID, "/", "terminal");
                 goNextToken();
-                if (UNARY()) {
+                if (UNARY(myID)) {
+                    guard.commit();
                     return true;
                 }
             } else {
-                
                 printDebug("TERM_REST -> % UNARY");
         /* TERM_REST -> % UNARY */
                 if (checkToken("%")) {
+                    int moduleID = currentID++;
+                    addNode(moduleID, myID, "%", "terminal");
                     goNextToken();
-                    if (UNARY()) {
+                    if (UNARY(myID)) {
+                        guard.commit();
                         return true;
                     }
                 }
@@ -1370,47 +1835,61 @@ private:
         return false;
     }
 
-    bool TERM_REST_REST() {
+    bool TERM_REST_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "TERM_REST_REST", "non-terminal");
+
         printDebug("TERM_REST_REST -> TERM_REST TERM_REST_REST");
     /* TERM_REST_REST -> TERM_REST TERM_REST_REST */
-        if (TERM_REST()) {
-            if (TERM_REST_REST()) {
+        if (TERM_REST(myID)) {
+            if (TERM_REST_REST(myID)) {
+                guard.commit();
                 return true;
             }
         }
         else {
-            
             printDebug("TERM_REST_REST -> EOP");
         /* TERM_REST_REST -> EOP */
-            if (EOP()) {
+            if (EOP(myID)) {
+                guard.commit();
                 return true;
             }
         } 
         return false;  
     }
 
-    bool UNARY() {
+    bool UNARY(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "UNARY", "non-terminal");
+
         printDebug("UNARY -> ! UNARY");
         /* UNARY -> ! UNARY */
         if (checkToken("!")) {
+            int notID = currentID++;
+            addNode(notID, myID, "!", "terminal");
             goNextToken();
-            if (UNARY()) {
+            if (UNARY(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("UNARY -> - UNARY");
         /* UNARY -> - UNARY */
             if (checkToken("-")) {
+                int minusID = currentID++;
+                addNode(minusID, myID, "-", "terminal");
                 goNextToken();
-                if (UNARY()) {
+                if (UNARY(myID)) {
+                    guard.commit();
                     return true;
                 }
             } else {
-                
                 printDebug("UNARY -> FACTOR");
         /* UNARY -> FACTOR */
-                if (FACTOR()) {
+                if (FACTOR(myID)) {
+                    guard.commit();
                     return true;
                 }
             }
@@ -1418,55 +1897,64 @@ private:
         return false;
     }
 
-    bool FACTOR() {
+    bool FACTOR(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "FACTOR", "non-terminal");
+
         printDebug("FACTOR -> IDENTIFIER FACTOR_REST");
         /* FACTOR -> IDENTIFIER FACTOR_REST */
-        if (IDENTIFIER()) {
-            if (FACTOR_REST()) {
+        if (IDENTIFIER(myID)) {
+            if (FACTOR_REST(myID)) {
+                guard.commit();
                 return true;
             }
         } else {
-            
             printDebug("FACTOR -> INT_LITERAL FACTOR_REST");
         /* FACTOR -> INT_LITERAL FACTOR_REST */
-            if (INT_LITERAL()) {
-                if (FACTOR_REST()) {
+            if (INT_LITERAL(myID)) {
+                if (FACTOR_REST(myID)) {
+                    guard.commit();
                     return true;
                 }
             } else {
-                
                 printDebug("FACTOR -> CHAR_LITERAL FACTOR_REST");
         /* FACTOR -> CHAR_LITERAL FACTOR_REST */
-                if (CHAR_LITERAL()) {
-                    if (FACTOR_REST()) {
+                if (CHAR_LITERAL(myID)) {
+                    if (FACTOR_REST(myID)) {
+                        guard.commit();
                         return true;
                     }
                 } else {
-                    
                     printDebug("FACTOR -> STRING_LITERAL FACTOR_REST");
         /* FACTOR -> STRING_LITERAL FACTOR_REST */
-                    if (STRING_LITERAL()) {
-                        if (FACTOR_REST()) {
+                    if (STRING_LITERAL(myID)) {
+                        if (FACTOR_REST(myID)) {
+                            guard.commit();
                             return true;
                         }
                     } else {
-                        
                         printDebug("FACTOR -> BOOL_LITERAL FACTOR_REST");
         /* FACTOR -> BOOL_LITERAL FACTOR_REST */
-                        if (BOOL_LITERAL()) {
-                            if (FACTOR_REST()) {
+                        if (BOOL_LITERAL(myID)) {
+                            if (FACTOR_REST(myID)) {
+                                guard.commit();
                                 return true;
                             }
                         } else {
-                            
                             printDebug("FACTOR -> ( EXPRESSION ) FACTOR_REST");
         /* FACTOR -> ( EXPRESSION ) FACTOR_REST */
                             if (checkToken("(")) {
+                                int openParID = currentID++;
+                                addNode(openParID, myID, "(", "terminal");
                                 goNextToken();
-                                if (EXPRESSION()) {
+                                if (EXPRESSION(myID)) {
                                     if (checkToken(")")) {
+                                        int closeParID = currentID++;
+                                        addNode(closeParID, myID, ")", "terminal");
                                         goNextToken();
-                                        if (FACTOR_REST()) {
+                                        if (FACTOR_REST(myID)) {
+                                            guard.commit();
                                             return true;
                                         }
                                     }
@@ -1480,128 +1968,201 @@ private:
         return false;
     }
 
-    bool FACTOR_REST() {
+    bool FACTOR_REST(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "FACTOR_REST", "non-terminal");
+
         printDebug("FACTOR_REST -> [ EXPRESSION ] FACTOR_REST");
         /* FACTOR_REST -> [ EXPRESSION ] FACTOR_REST */
         if (checkToken("[")) {
+            int openBracesID = currentID++;
+            addNode(openBracesID, myID, "[", "terminal");
             goNextToken();
-            if (EXPRESSION()) {
+            if (EXPRESSION(myID)) {
                 if (checkToken("]")) {
+                    int closeBracesID = currentID++;
+                    addNode(closeBracesID, myID, "]", "terminal");
                     goNextToken();
-                    if (FACTOR_REST()) {
+                    if (FACTOR_REST(myID)) {
+                        guard.commit();
                         return true;
                     }
                 }
             }
         } else {
-            
             printDebug("FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST");
         /* FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST */
             if (checkToken("(")) {
+                int openParID = currentID++;
+                addNode(openParID, myID, "(", "terminal");
                 goNextToken();
-                if (EXPR_LIST()) {
+                if (EXPR_LIST(myID)) {
                     if (checkToken(")")) {
+                        int closeParID = currentID++;
+                        addNode(closeParID, myID, ")", "terminal");
                         goNextToken();
-                        if (FACTOR_REST()) {
+                        if (FACTOR_REST(myID)) {
+                            guard.commit();
                             return true;
                         }
                     }
                 }
             } else {
-                
                 printDebug("FACTOR_REST -> EOP");
-                if (EOP()) {
+        /* FACTOR_REST -> EOP */
+                if (EOP(myID)) {
+                    guard.commit();
                     return true;
                 }
-        /* FACTOR_REST -> EOP */
             }
         }
         return false;
     }
 
-    bool EOP() {
+    bool EOP(int parentID) {
         return true;
     }
 
-    bool IDENTIFIER() {
+    bool IDENTIFIER(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "IDENTIFIER", "non-terminal");
+
         printDebug("IDENTIFIER -> <Check Token Type>");
         /* IDENTIFIER -> <Check Token Type> */
         if (checkTokenType("IDENTIFIER")) {
+            int identifierID = currentID++;
+            addNode(identifierID, myID, get<1>(tokens[index]), "terminal");
             goNextToken();
+            guard.commit();
             return true;
         }
         return false;
     }
 
-    bool INT_TYPE() {
+    bool INT_TYPE(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "INT_TYPE", "non-terminal");
+
         printDebug("INT_TYPE -> integer");
         /* INT_TYPE -> integer */
         if (checkToken("integer")) {
+            int integerID = currentID++;
+            addNode(integerID, myID, "integer", "terminal");
             goNextToken();
+            guard.commit();
             return true;
         }
         return false;
     }
 
-    bool BOOL_TYPE() {
+    bool BOOL_TYPE(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "BOOL_TYPE", "non-terminal");
+
         printDebug("BOOL_TYPE -> boolean");
         /* BOOL_TYPE -> boolean */
         if (checkToken("boolean")) {
+            int booleanID = currentID++;
+            addNode(booleanID, myID, "boolean", "terminal");
             goNextToken();
+            guard.commit();
             return true;
         }
         return false;
     }
 
-    bool CHAR_TYPE() {
+    bool CHAR_TYPE(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "CHAR_TYPE", "non-terminal");
+
         printDebug("CHAR_TYPE -> char");
         /* CHAR_TYPE -> char */
         if (checkToken("char")) {
+            int charID = currentID++;
+            addNode(charID, myID, "char", "terminal");
             goNextToken();
+            guard.commit();
             return true;
         }
         return false;
     }
 
-    bool STRING_TYPE() {
+    bool STRING_TYPE(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "STRING_TYPE", "non-terminal");
+
         printDebug("STRING_TYPE -> string");
         /* STRING_TYPE -> string */
         if (checkToken("string")) {
+            int stringID = currentID++;
+            addNode(stringID, myID, "string", "terminal");
             goNextToken();
+            guard.commit();
             return true;
         }
         return false;
     }
 
-    bool VOID_TYPE() {
+    bool VOID_TYPE(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "VOID_TYPE", "non-terminal");
+
         printDebug("VOID_TYPE -> void");
         /* VOID_TYPE -> void */
         if (checkToken("void")) {
+            int voidID = currentID++;
+            addNode(voidID, myID, "void", "terminal");
             goNextToken();
+            guard.commit();
             return true;
         }
         return false;
     }
 
-    bool INT_LITERAL() {
+    bool INT_LITERAL(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "INT_LITERAL", "non-terminal");
+
         printDebug("INT_LITERAL -> <Check Token Type>");
         /* INT_LITERAL -> <Check Token Type> */
         if (checkTokenType("INTEGER")) {
+            int integerID = currentID++;
+            addNode(integerID, myID, get<1>(tokens[index]), "terminal");
             goNextToken();
+            guard.commit();
             return true;
         }
         return false;
     }
 
-    bool CHAR_LITERAL() {
+    bool CHAR_LITERAL(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "CHAR_LITERAL", "non-terminal");
+
         printDebug("CHAR_LITERAL -> ' <Check Token Type> '");
         /* CHAR_LITERAL -> ' <Check Token Type> ' */
         if (checkToken("'")) {
+            int openSingleQuouteID = currentID++;
+            addNode(openSingleQuouteID, myID, "'", "terminal");
             goNextToken();
             if (checkTokenType("CHAR")) {
+                int charID = currentID++;
+                addNode(charID, myID, get<1>(tokens[index]), "terminal");
                 goNextToken();
                 if (checkToken("'")) {
+                    int closeSingleQuoteID = currentID++;
+                    addNode(closeSingleQuoteID, myID, "'", "terminal");          
                     goNextToken();
+                    guard.commit();
                     return true;
                 }
             }
@@ -1609,15 +2170,26 @@ private:
         return false;
     }
 
-    bool STRING_LITERAL() {
+    bool STRING_LITERAL(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "STRING_LITERAL", "non-terminal");
+
         printDebug("STRING_LITERAL -> \" <Check Token Type> \"");
         /* STRING_LITERAL -> " <Check Token Type> " */
         if (checkToken("\"")) {
+            int openDoubleQuouteID = currentID++;
+            addNode(openDoubleQuouteID, myID, "\"", "terminal");
             goNextToken();
             if (checkTokenType("STRING")) {
+                int stringID = currentID++;
+                addNode(stringID, myID, get<1>(tokens[index]), "terminal");
                 goNextToken();
                 if (checkToken("\"")) {
+                    int closeDoubleQuouteID = currentID++;
+                    addNode(closeDoubleQuouteID, myID, "\"", "terminal");
                     goNextToken();
+                    guard.commit();
                     return true;
                 }
             }
@@ -1625,17 +2197,27 @@ private:
         return false;
     }
 
-    bool BOOL_LITERAL() {
+    bool BOOL_LITERAL(int parentID) {
+        ScopeGuard guard(*this);
+        int myID = currentID++;
+        addNode(myID, parentID, "BOOL_LITERAL", "non-terminal");
+
         printDebug("BOOL_LITERAL -> true");
         /* BOOL_LITERAL -> true */
         if (checkToken("true")) {
+            int trueID = currentID++;
+            addNode(trueID, myID, "true", "terminal");
             goNextToken();
+            guard.commit();
             return true;
         } else {
             printDebug("BOOL_LITERAL -> false");
         /* BOOL_LITERAL -> false */
             if (checkToken("false")) {
+                int falseID = currentID++;
+                addNode(falseID, myID, "false", "terminal");
                 goNextToken();
+                guard.commit();
                 return true;
             }
         }
@@ -1648,31 +2230,30 @@ int main() {
 
     vector<vector<char>> buffer = scanner.readBMMFile("input3.bmm");
 
-    for (int i = 0; i < buffer.size(); i++) {
-        for (int j = 0; j < buffer[i].size(); j++) {
-            cout << buffer[i][j];
-        }
-    }
+    // for (int i = 0; i < buffer.size(); i++) {
+    //     for (int j = 0; j < buffer[i].size(); j++) {
+    //         cout << buffer[i][j];
+    //     }
+    // }
 
-    cout<<"------EMPEZANDO EL SCANNER..."<<endl;
+    //cout<<"------EMPEZANDO EL SCANNER..."<<endl;
     vector<tuple<string, string, int, int>> tokens = scanner.Tokenize(buffer);
 
-    if(errores_encontrados.size()>0)
-    {
-        cout<<"------SCANNER TERMINADO CON "<<errores_encontrados.size() <<" ERRORES"<<endl;
-        for(int i =0 ; i <errores_encontrados.size();i++)
-        {
-            cout << get<0>(errores_encontrados[i])  << get<1>(errores_encontrados[i]) << "' en fila " 
-                     << get<2>(errores_encontrados[i]) << ", columna " << get<3>(errores_encontrados[i])-1<< endl;
-        }
+    if(errores_encontrados.size()<=0) {
+        cout<<"Successful scanner"<<endl;
     }
-    else{
-        cout<<"------SCANNER TERMINADO SIN ERRORES"<<endl;
+    else {
+        // cout<<"------SCANNER TERMINADO CON "<<errores_encontrados.size() <<" ERRORES"<<endl;
+        // for(int i =0 ; i <errores_encontrados.size();i++)
+        // {
+        //     cout << get<0>(errores_encontrados[i])  << get<1>(errores_encontrados[i]) << "' en fila " 
+        //              << get<2>(errores_encontrados[i]) << ", columna " << get<3>(errores_encontrados[i])-1<< endl;
+        // }
     }
-    for (int i = 0; i < tokens.size(); i++) {
-        printf("Token: %-20s Value: %-20s Fila: %-20d Columna: %-20d\n", 
-       get<0>(tokens[i]).c_str(), get<1>(tokens[i]).c_str(), get<2>(tokens[i]) + 1, get<3>(tokens[i]) + 1);
-    }
+    // for (int i = 0; i < tokens.size(); i++) {
+    //     printf("Token: %-20s Value: %-20s Fila: %-20d Columna: %-20d\n", 
+    //    get<0>(tokens[i]).c_str(), get<1>(tokens[i]).c_str(), get<2>(tokens[i]) + 1, get<3>(tokens[i]) + 1);
+    // }
 
     
     Parser parser(tokens, false);

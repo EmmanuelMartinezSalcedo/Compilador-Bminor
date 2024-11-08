@@ -40,4 +40,5 @@ string less (string a, string b) {
   if (a < b == true) {
     return "a less than b";
   }
+  print(1, -1, 1<2, !a, a+9, isEven(a==1, true, 0));
 }
