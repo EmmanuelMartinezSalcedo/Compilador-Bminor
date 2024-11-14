@@ -1,15 +1,38 @@
-integer a = 12;
-char k = 'b';
-char k = 'x';
-char hola = ' ';
-
-void printarray ( integer[] a, integer size ) {
+integer a;
+string s = "hola";
+integer b = b + 2;
+integer c = (1 + 2) - (3 * 3);
+integer d = ((1 + 2) - (3 % 3)) / c;
+void printarray ( integer[] a, integer size, boolean x, string s ) {
 	integer i;
-	for( i=0;i<size;i=i+1;) {
+  i * a + 12;
+	for(i = 0; i < size; i = i + 1;) {
     print(a[i], "\n");
 		print(a[i], "\n");
-    if (i == size-1) {
+    if (i == size - 1) {
       return 3;
     }
+    else {
+      if (i == size - 2) {
+        return 4;
+      }
+      else {
+        if (("hola" != "mundo") && ("hola2" != "mundo2")) {
+          return !!!x || x;
+        }
+        return -2;
+      }
+      return 2;
+    }
 	}
+}
+
+void saludar(boolean x) {
+  printarray(b, c, d, e);
+  if (x) {
+    print("hola");
+  }
+  else {
+    print("adios");
+  }
 }
