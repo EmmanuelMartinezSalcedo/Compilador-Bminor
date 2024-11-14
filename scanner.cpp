@@ -619,7 +619,7 @@ void removeUselessSymbols(const string& csvFile) {
     unordered_map<int, Node> nodes;
     unordered_map<int, vector<int>> childrenMap;
     vector<Node> orderedNodes;
-    unordered_set<string> uselessSymbols = {"quote", "comma", "{", "}", ";", "(", ")", "if", "for", "else"};
+    unordered_set<string> uselessSymbols = {"quote", "comma", "{", "}", ";", "(", ")", "if", "for", "else", "'"};
 
     ifstream file(csvFile);
     string line;
@@ -1146,7 +1146,449 @@ void processOrExpr(const string& csvFile) {
     outputFile.close();
 }
 
-void reduxIDs(const string& csvFile) {
+void processFunctions(const string& csvFile) {
+    unordered_map<int, Node> nodes;
+    vector<int> nodeOrder;
+    ifstream inputFile(csvFile);
+    string line;
+
+    getline(inputFile, line);
+    while (getline(inputFile, line)) {
+        stringstream ss(line);
+        Node node;
+        string temp;
+
+        getline(ss, temp, ',');
+        node.id = stoi(temp);
+        getline(ss, temp, ',');
+        node.parentID = stoi(temp);
+        getline(ss, node.value, ',');
+        getline(ss, node.type, ',');
+
+        nodes[node.id] = node;
+        nodeOrder.push_back(node.id);
+
+        if (node.parentID != -1) {
+            nodes[node.parentID].children.push_back(node.id);
+        }
+    }
+    inputFile.close();
+
+    for (auto& [id, node] : nodes) {
+        if (node.value == "FUNCTION" && !node.children.empty()) {
+            auto leftChildIt = min_element(node.children.begin(), node.children.end());
+            int leftChildID = *leftChildIt;
+
+            nodes[leftChildID].parentID = node.parentID;
+            
+            if (node.parentID != -1) {
+                auto& parentChildren = nodes[node.parentID].children;
+                replace(parentChildren.begin(), parentChildren.end(), node.id, leftChildID);
+            }
+
+            for (int childID : node.children) {
+                if (childID != leftChildID) {
+                    nodes[childID].parentID = leftChildID;
+                    nodes[leftChildID].children.push_back(childID);
+                }
+            }
+            node.children.clear();
+        }
+    }
+
+    ofstream outputFile(csvFile);
+    outputFile << "ID,PadreID,Valor,Tipo\n";
+    for (int id : nodeOrder) {
+        if (!nodes[id].children.empty() || nodes[id].value != "FUNCTION") {
+            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
+                       << nodes[id].value << ',' << nodes[id].type << '\n';
+        }
+    }
+    outputFile.close();
+}
+
+void processExprList(const string& csvFile) {
+    unordered_map<int, Node> nodes;
+    vector<int> nodeOrder;
+    ifstream inputFile(csvFile);
+    string line;
+
+    getline(inputFile, line);
+    while (getline(inputFile, line)) {
+        stringstream ss(line);
+        Node node;
+        string temp;
+
+        getline(ss, temp, ',');
+        node.id = stoi(temp);
+        getline(ss, temp, ',');
+        node.parentID = stoi(temp);
+        getline(ss, node.value, ',');
+        getline(ss, node.type, ',');
+
+        nodes[node.id] = node;
+        nodeOrder.push_back(node.id);
+
+        if (node.parentID != -1) {
+            nodes[node.parentID].children.push_back(node.id);
+        }
+    }
+    inputFile.close();
+
+    for (auto& [id, node] : nodes) {
+        if (node.value == "EXPR_LIST" && !node.children.empty()) {
+            auto leftChildIt = min_element(node.children.begin(), node.children.end());
+            int leftChildID = *leftChildIt;
+
+            nodes[leftChildID].parentID = node.parentID;
+
+            if (node.parentID != -1) {
+                auto& parentChildren = nodes[node.parentID].children;
+                replace(parentChildren.begin(), parentChildren.end(), node.id, leftChildID);
+            }
+
+            for (int childID : node.children) {
+                if (childID != leftChildID) {
+                    nodes[childID].parentID = leftChildID;
+                    nodes[leftChildID].children.push_back(childID);
+                }
+            }
+            node.children.clear();
+        }
+    }
+
+    ofstream outputFile(csvFile);
+    outputFile << "ID,PadreID,Valor,Tipo\n";
+    for (int id : nodeOrder) {
+        if (!nodes[id].children.empty() || nodes[id].value != "EXPR_LIST") {
+            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
+                       << nodes[id].value << ',' << nodes[id].type << '\n';
+        }
+    }
+    outputFile.close();
+}
+
+void processReturnStmt(const string& csvFile) {
+    unordered_map<int, Node> nodes;
+    vector<int> nodeOrder;
+    ifstream inputFile(csvFile);
+    string line;
+
+    getline(inputFile, line);
+    while (getline(inputFile, line)) {
+        stringstream ss(line);
+        Node node;
+        string temp;
+
+        getline(ss, temp, ',');
+        node.id = stoi(temp);
+        getline(ss, temp, ',');
+        node.parentID = stoi(temp);
+        getline(ss, node.value, ',');
+        getline(ss, node.type, ',');
+
+        nodes[node.id] = node;
+        nodeOrder.push_back(node.id);
+
+        if (node.parentID != -1) {
+            nodes[node.parentID].children.push_back(node.id);
+        }
+    }
+    inputFile.close();
+
+    for (auto& [id, node] : nodes) {
+        if (node.value == "RETURN_STMT" && !node.children.empty()) {
+            auto returnChildIt = find_if(node.children.begin(), node.children.end(),
+                                              [&nodes](int childID) { return nodes[childID].value == "return"; });
+
+            if (returnChildIt != node.children.end()) {
+                int returnChildID = *returnChildIt;
+
+                nodes[returnChildID].parentID = node.parentID;
+
+                if (node.parentID != -1) {
+                    auto& parentChildren = nodes[node.parentID].children;
+                    replace(parentChildren.begin(), parentChildren.end(), node.id, returnChildID);
+                }
+
+                for (int childID : node.children) {
+                    if (childID != returnChildID) {
+                        nodes[childID].parentID = returnChildID;
+                        nodes[returnChildID].children.push_back(childID);
+                    }
+                }
+                node.children.clear();
+            }
+        }
+    }
+
+    ofstream outputFile(csvFile);
+    outputFile << "ID,PadreID,Valor,Tipo\n";
+    for (int id : nodeOrder) {
+        if (!nodes[id].children.empty() || nodes[id].value != "RETURN_STMT") {
+            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
+                       << nodes[id].value << ',' << nodes[id].type << '\n';
+        }
+    }
+    outputFile.close();
+}
+
+void processPrintStmt(const string& csvFile) {
+    unordered_map<int, Node> nodes;
+    vector<int> nodeOrder;
+    ifstream inputFile(csvFile);
+    string line;
+
+    getline(inputFile, line);
+    while (getline(inputFile, line)) {
+        stringstream ss(line);
+        Node node;
+        string temp;
+
+        getline(ss, temp, ',');
+        node.id = stoi(temp);
+        getline(ss, temp, ',');
+        node.parentID = stoi(temp);
+        getline(ss, node.value, ',');
+        getline(ss, node.type, ',');
+
+        nodes[node.id] = node;
+        nodeOrder.push_back(node.id);
+
+        if (node.parentID != -1) {
+            nodes[node.parentID].children.push_back(node.id);
+        }
+    }
+    inputFile.close();
+
+    for (auto& [id, node] : nodes) {
+        if (node.value == "PRINT_STMT" && !node.children.empty()) {
+            auto printChildIt = find_if(node.children.begin(), node.children.end(),
+                                             [&nodes](int childID) { return nodes[childID].value == "print"; });
+
+            if (printChildIt != node.children.end()) {
+                int printChildID = *printChildIt;
+
+                nodes[printChildID].parentID = node.parentID;
+
+                if (node.parentID != -1) {
+                    auto& parentChildren = nodes[node.parentID].children;
+                    replace(parentChildren.begin(), parentChildren.end(), node.id, printChildID);
+                }
+
+                for (int childID : node.children) {
+                    if (childID != printChildID) {
+                        nodes[childID].parentID = printChildID;
+                        nodes[printChildID].children.push_back(childID);
+                    }
+                }
+                node.children.clear();
+            }
+        }
+    }
+
+    ofstream outputFile(csvFile);
+    outputFile << "ID,PadreID,Valor,Tipo\n";
+    for (int id : nodeOrder) {
+        if (!nodes[id].children.empty() || nodes[id].value != "PRINT_STMT") {
+            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
+                       << nodes[id].value << ',' << nodes[id].type << '\n';
+        }
+    }
+    outputFile.close();
+}
+
+void processFactor(const string& csvFile) {
+    unordered_map<int, Node> nodes;
+    vector<int> nodeOrder;
+    ifstream inputFile(csvFile);
+    string line;
+
+    getline(inputFile, line);
+    while (getline(inputFile, line)) {
+        stringstream ss(line);
+        Node node;
+        string temp;
+
+        getline(ss, temp, ',');
+        node.id = stoi(temp);
+        getline(ss, temp, ',');
+        node.parentID = stoi(temp);
+        getline(ss, node.value, ',');
+        getline(ss, node.type, ',');
+
+        nodes[node.id] = node;
+        nodeOrder.push_back(node.id);
+
+        if (node.parentID != -1) {
+            nodes[node.parentID].children.push_back(node.id);
+        }
+    }
+    inputFile.close();
+
+    for (auto& [id, node] : nodes) {
+        if (node.value == "FACTOR" && !node.children.empty()) {
+            auto leftChildIt = min_element(node.children.begin(), node.children.end());
+            int leftChildID = *leftChildIt;
+
+            nodes[leftChildID].parentID = node.parentID;
+
+            if (node.parentID != -1) {
+                auto& parentChildren = nodes[node.parentID].children;
+                replace(parentChildren.begin(), parentChildren.end(), node.id, leftChildID);
+            }
+
+            for (int childID : node.children) {
+                if (childID != leftChildID) {
+                    nodes[childID].parentID = leftChildID;
+                    nodes[leftChildID].children.push_back(childID);
+                }
+            }
+            node.children.clear();
+        }
+    }
+
+    ofstream outputFile(csvFile);
+    outputFile << "ID,PadreID,Valor,Tipo\n";
+    for (int id : nodeOrder) {
+        if (!nodes[id].children.empty() || nodes[id].value != "FACTOR") {
+            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
+                       << nodes[id].value << ',' << nodes[id].type << '\n';
+        }
+    }
+    outputFile.close();
+}
+
+void processDeclaration(const string& csvFile) {
+    unordered_map<int, Node> nodes;
+    vector<int> nodeOrder;
+    ifstream inputFile(csvFile);
+    string line;
+
+    getline(inputFile, line);
+    while (getline(inputFile, line)) {
+        stringstream ss(line);
+        Node node;
+        string temp;
+
+        getline(ss, temp, ',');
+        node.id = stoi(temp);
+        getline(ss, temp, ',');
+        node.parentID = stoi(temp);
+        getline(ss, node.value, ',');
+        getline(ss, node.type, ',');
+
+        nodes[node.id] = node;
+        nodeOrder.push_back(node.id);
+
+        if (node.parentID != -1) {
+            nodes[node.parentID].children.push_back(node.id);
+        }
+    }
+    inputFile.close();
+
+    for (auto& [id, node] : nodes) {
+        if (node.value == "PROGRAM_REST") {
+            vector<int> declarationChildren;
+            for (int childID : node.children) {
+                if (nodes[childID].value == "DECLARATION") {
+                    declarationChildren.push_back(childID);
+                }
+            }
+
+            if (!declarationChildren.empty()) {
+                int leftDeclarationChildID = *min_element(declarationChildren.begin(), declarationChildren.end());
+
+                nodes[leftDeclarationChildID].parentID = node.parentID;
+
+                if (node.parentID != -1) {
+                    auto& parentChildren = nodes[node.parentID].children;
+                    replace(parentChildren.begin(), parentChildren.end(), node.id, leftDeclarationChildID);
+                }
+
+                for (int childID : node.children) {
+                    if (childID != leftDeclarationChildID) {
+                        nodes[childID].parentID = leftDeclarationChildID;
+                        nodes[leftDeclarationChildID].children.push_back(childID);
+                    }
+                }
+                node.children.clear();
+            }
+        }
+    }
+
+    ofstream outputFile(csvFile);
+    outputFile << "ID,PadreID,Valor,Tipo\n";
+    for (int id : nodeOrder) {
+        if (!nodes[id].children.empty() || nodes[id].value != "PROGRAM_REST") {
+            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
+                       << nodes[id].value << ',' << nodes[id].type << '\n';
+        }
+    }
+    outputFile.close();
+}
+
+void processStmt(const string& csvFile) {
+    unordered_map<int, Node> nodes;
+    vector<int> nodeOrder;
+    ifstream inputFile(csvFile);
+    string line;
+
+    getline(inputFile, line);
+    while (getline(inputFile, line)) {
+        stringstream ss(line);
+        Node node;
+        string temp;
+
+        getline(ss, temp, ',');
+        node.id = stoi(temp);
+        getline(ss, temp, ',');
+        node.parentID = stoi(temp);
+        getline(ss, node.value, ',');
+        getline(ss, node.type, ',');
+
+        nodes[node.id] = node;
+        nodeOrder.push_back(node.id);
+
+        if (node.parentID != -1) {
+            nodes[node.parentID].children.push_back(node.id);
+        }
+    }
+    inputFile.close();
+
+    for (auto& [id, node] : nodes) {
+        if ((node.value == "STMT_LIST" || node.value == "STMT_LIST_REST") && !node.children.empty()) {
+            int leftChildID = *min_element(node.children.begin(), node.children.end());
+
+            nodes[leftChildID].parentID = node.parentID;
+
+            if (node.parentID != -1) {
+                auto& parentChildren = nodes[node.parentID].children;
+                replace(parentChildren.begin(), parentChildren.end(), node.id, leftChildID);
+            }
+
+            for (int childID : node.children) {
+                if (childID != leftChildID) {
+                    nodes[childID].parentID = leftChildID;
+                    nodes[leftChildID].children.push_back(childID);
+                }
+            }
+            node.children.clear();
+        }
+    }
+
+    ofstream outputFile(csvFile);
+    outputFile << "ID,PadreID,Valor,Tipo\n";
+    for (int id : nodeOrder) {
+        if (!nodes[id].children.empty() || (nodes[id].value != "STMT_LIST" && nodes[id].value != "STMT_LIST_REST")) {
+            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
+                       << nodes[id].value << ',' << nodes[id].type << '\n';
+        }
+    }
+    outputFile.close();
+}
+
+void reduceIDs(const string& csvFile) {
     vector<Node> nodes;
     map<int, int> idMapping;
     ifstream inputFile(csvFile);
@@ -1209,7 +1651,14 @@ void createAST(const string& csvFile) {
     processRelExpr(csvFile);
     processAndExpr(csvFile);
     processOrExpr(csvFile);
-    reduxIDs(csvFile);
+    processFunctions(csvFile);
+    processExprList(csvFile);
+    processReturnStmt(csvFile);
+    processPrintStmt(csvFile);
+    processFactor(csvFile);
+    processDeclaration(csvFile);
+    //processStmt(csvFile);
+    reduceIDs(csvFile);
 }
 
 class Parser {

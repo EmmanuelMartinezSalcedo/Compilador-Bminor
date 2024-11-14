@@ -1,0 +1,97 @@
+PROGRAM
+├── DECLARATION
+│   ├── FUNCTION
+│   │   ├── TYPE
+│   │   │   └── integer
+│   │   └── a
+│   └── VAR_DECL
+│       ├── =
+│       └── 12
+├── DECLARATION_1
+│   ├── FUNCTION_1
+│   │   ├── TYPE_1
+│   │   │   └── char
+│   │   └── k
+│   └── VAR_DECL_1
+│       ├── =_1
+│       ├── '
+│       ├── b
+│       └── '_1
+├── DECLARATION_2
+│   ├── FUNCTION_2
+│   │   ├── TYPE_2
+│   │   │   └── char_1
+│   │   └── k_1
+│   └── VAR_DECL_2
+│       ├── =_2
+│       ├── '_2
+│       ├── x
+│       └── '_3
+├── DECLARATION_3
+│   ├── FUNCTION_3
+│   │   ├── TYPE_3
+│   │   │   └── char_2
+│   │   └── hola
+│   └── VAR_DECL_3
+│       ├── =_3
+│       ├── '_4
+│       ├──  
+│       └── '_5
+└── DECLARATION_4
+    ├── FUNCTION_4
+    │   ├── TYPE_4
+    │   │   └── void
+    │   └── printarray
+    ├── integer_1
+    ├── [
+    ├── ]
+    ├── a_1
+    ├── integer_2
+    ├── size
+    ├── FUNCTION_5
+    │   ├── TYPE_5
+    │   │   └── integer_3
+    │   └── i
+    ├── VAR_DECL_4
+    ├── i_1
+    ├── *
+    ├── a_2
+    ├── +
+    ├── 12_1
+    └── FOR_STMT
+        ├── for
+        ├── i_2
+        ├── =_4
+        ├── 0
+        ├── i_3
+        ├── <
+        ├── size_1
+        ├── i_4
+        ├── =_5
+        ├── i_5
+        ├── +_1
+        ├── 1
+        ├── PRINT_STMT
+        │   ├── print
+        │   ├── a_3
+        │   ├── [_1
+        │   ├── i_6
+        │   ├── ]_1
+        │   └── \n
+        ├── PRINT_STMT_1
+        │   ├── print_1
+        │   ├── a_4
+        │   ├── [_2
+        │   ├── i_7
+        │   ├── ]_2
+        │   └── \n_1
+        └── IF_STMT
+            ├── if
+            ├── i_8
+            ├── =_6
+            ├── -
+            ├── -_1
+            ├── 1_1
+            └── RETURN_STMT
+                ├── return
+                └── 3

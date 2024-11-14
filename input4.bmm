@@ -8,7 +8,7 @@ void printarray ( integer[] a, integer size, boolean x, string s ) {
   i * a + 12;
 	for(i = 0; i < size; i = i + 1;) {
     print(a[i], "\n");
-		print(a[i], "\n");
+		print(a[i], "\n", "HOLAAAA", 1, true, false, s, b[i], 'x', 12);
     if (i == size - 1) {
       return 3;
     }
