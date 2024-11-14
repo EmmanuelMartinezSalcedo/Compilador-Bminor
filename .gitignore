@@ -1,6 +1,6 @@
 /.vscode
 c.exe
 scanner.exe
-parseTree.txt
-parseTree.png
-parseTree.csv
+astTree.txt
+astTree.png
+astTree.csv
