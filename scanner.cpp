@@ -1656,7 +1656,7 @@ void createAST(const string& csvFile) {
     processReturnStmt(csvFile);
     processPrintStmt(csvFile);
     processFactor(csvFile);
-    processDeclaration(csvFile);
+    //processDeclaration(csvFile);
     //processStmt(csvFile);
     reduceIDs(csvFile);
 }
