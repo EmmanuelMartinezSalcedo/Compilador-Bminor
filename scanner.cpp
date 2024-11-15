@@ -1711,7 +1711,7 @@ private:
         cout << "Iniciando recuperacion de error..." << endl;
         while (index < tokens.size()) {
             string currentToken = get<1>(tokens[index]);
-            cout<<"Token de error: " << currentToken<<endl;
+            cout<<"Consumiendo tokens hasta sincronizar: " << currentToken<<endl;
             // Si el token actual es uno de los tokens de sincronización, se detiene la recuperación
             if (find(syncTokens.begin(), syncTokens.end(), currentToken) != syncTokens.end()) {
                 cout << "Recuperacion de error completa en token: " << currentToken << endl;
