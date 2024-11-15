@@ -1,24 +1,26 @@
 a: integer = 12; //comentario en linea
 k: char = 'b';
-"asdasdasdsad"; /* COMENTARIO LARGO
-ENTRE VARIAS LINEAS */
+k: char = '\o';
+hola: char = ' ';
+//"asdasdasdsad";
+
+/* COMENTARIO LARGO ENTRE VARIAS LINEAS */ */
     
 
-a = 12 + 9223372036854775807;
-b = 9223372036854775807;
-c = 9999999999999999999;
+a = 12 + 922337;
+b = 92233;
+c = 999999999;
 q: string = "hola"
 r: boolean = true;
 w: boolean = false;
 Caracter: char = 'w';
 _variable_
 COM_p1_LAR;
-1valor: integer = 4;
-identificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargoidentificadorlargo
+valor: integer = 4;
 a++;
-#c;
-pru#ba;
-b @ = 7;
+c;
+pruba;
+b = 7;
 print a;
 print "The temperature is: ", temp, " degrees\n";
 

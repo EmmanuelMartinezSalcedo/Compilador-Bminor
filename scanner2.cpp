@@ -12,11 +12,8 @@
 #include <set>
 #include <map>
 #include <functional>
-#include <unordered_map>
-#include <unordered_set>
 using namespace std;
 
-int parser_error = 0;
 int mostrar_solo_errores = 0;
 
 vector<tuple<string,string,int,int>> errores_encontrados;
@@ -27,7 +24,7 @@ public:
         keywords = {"array", "boolean", "char", "else", "false", "for", "function", "if", 
                     "integer","map", "print", "return", "string", "true", "void", "while"};
         symbols = {",", ";", ":", "(", ")", "[", "]", "{", "}","\"","\'"};
-        operators = {"++", "--", "+", "-", "*", "/", "%", "^", "&&", "||", "!", "=", "<", ">", "<=", ">=", "==", "!=", "&", "|"};
+        operators = {"++", "--", "+", "-", "*", "/", "%", "^", "&&", "||", "!", "=", "<", ">", "<=", ">=", "==", "!="};
     }
 
     ~Scanner() {}
@@ -456,1210 +453,144 @@ private:
 
 struct Node {
     int id;
-    int parentID;
+    int parentId;
     string value;
     string type;
-    bool hasChildren = false;
     vector<int> children;
+    bool includeInAST;
 };
 
-void deleteNonTerminalLeafs(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    vector<string> lines;
-    string header;
+const set<string> nodesToRemove = {
+    "PROGRAM_REST", "TYPE_REST", "PARAMS_REST", "STMT_LIST_REST",
+    "IF_STMT_REST", "EXPR_LIST_REST", "OR_EXPR_REST", "AND_EXPR_REST",
+    "EQ_EXPR_REST", "EQ_EXPR_REST_REST", "REL_EXPR_REST", "REL_EXPR_REST_REST",
+    "EXPR_REST", "EXPR_REST_REST", "TERM_REST", "TERM_REST_REST",
+    "FACTOR_REST", "EOP", "OR_EXPR", "AND_EXPR", "EQ_EXPR", "REL_EXPR",
+    "EXPR", "TERM", "UNARY", "FACTOR"
+};
 
-    ifstream file(csvFile);
-    if (!file.is_open()) {
-        cout << "Error al abrir el archivo" << endl;
-        return;
-    }
+const set<string> keepNodes = {
+    "PROGRAM", "DECLARATION", "FUNCTION", "IF_STMT", "FOR_STMT",
+    "RETURN_STMT", "PRINT_STMT", "VAR_DECL", "TYPE"
+};
+
+const set<string> uselessSymbols = {"(", ")", "{", "}", ";"};
+
+string readCSVField(istream& str) {
+    string result;
+    bool inQuotes = false;
+    char c;
     
-    getline(file, header);
-    lines.push_back(header);
-    
-    string line;
-    while (getline(file, line)) {
-        stringstream ss(line);
-        string idStr, parentIDStr, value, type;
-        
-        getline(ss, idStr, ',');
-        getline(ss, parentIDStr, ',');
-        getline(ss, value, ',');
-        getline(ss, type);
-        
-        int id = stoi(idStr);
-        int parentID = stoi(parentIDStr);
-        
-        Node node{id, parentID, value, type, false};
-        nodes[id] = node;
-        lines.push_back(line);
-    }
-    file.close();
-    
-    for (auto& pair : nodes) {
-        Node& node = pair.second;
-        if (node.parentID != -1) {
-            nodes[node.parentID].hasChildren = true;
-            nodes[node.parentID].children.push_back(node.id);
+    while (str.get(c)) {
+        if (c == '"') {
+            if (str.peek() == '"') {
+                str.get();
+                result += '"';
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (c == ',' && !inQuotes) {
+            break;
+        } else {
+            result += c;
         }
     }
     
-    vector<int> toDelete;
-    for (const auto& pair : nodes) {
-        const Node& node = pair.second;
-        if (!node.hasChildren && node.type == "non-terminal") {
-            toDelete.push_back(node.id);
-        }
-    }
-    
-    ofstream outFile(csvFile);
-    if (!outFile.is_open()) {
-        cout << "Error al abrir el archivo para escritura" << endl;
-        return;
-    }
-    
-    outFile << header << endl;
-    
-    for (size_t i = 1; i < lines.size(); i++) {
-        stringstream ss(lines[i]);
-        string idStr;
-        getline(ss, idStr, ',');
-        int id = stoi(idStr);
-        
-        if (find(toDelete.begin(), toDelete.end(), id) == toDelete.end()) {
-            outFile << lines[i] << endl;
-        }
-    }
-    
-    outFile.close();
+    return result;
 }
 
-void reduceTree(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    unordered_map<int, vector<int>> childrenMap;
-    vector<Node> orderedNodes;
-    ifstream file(csvFile);
-    string line;
-    bool firstLine = true;
-
-    while (getline(file, line)) {
-        if (firstLine) {
-            firstLine = false;
-            continue;
-        }
-
-        stringstream ss(line);
-        Node node;
-        string item;
-
-        getline(ss, item, ',');
-        node.id = stoi(item);
-
-        getline(ss, item, ',');
-        node.parentID = stoi(item);
-
-        getline(ss, item, ',');
-        node.value = item;
-
-        getline(ss, item, ',');
-        node.type = item;
-
-        nodes[node.id] = node;
-
-        if (node.parentID != -1) {
-            childrenMap[node.parentID].push_back(node.id);
-        }
+vector<string> splitCSVLine(const string& line) {
+    vector<string> fields;
+    stringstream ss(line);
+    
+    while (ss.good()) {
+        fields.push_back(readCSVField(ss));
     }
-    file.close();
+    
+    return fields;
+}
 
-    bool changes;
-    do {
-        changes = false;
-        vector<int> nodesToRemove;
+Node* createNode(int id, int parentId, const string& value, const string& type) {
+    Node* node = new Node;
+    node->id = id;
+    node->parentId = parentId;
+    node->value = value;
+    node->type = type;
+    node->includeInAST = node->type == "terminal" || keepNodes.find(node->value) != keepNodes.end();
+    return node;
+}
 
-        for (const auto& [id, node] : nodes) {
-            if (node.type == "non-terminal" && childrenMap[id].size() == 1) {
-                int childId = childrenMap[id][0];
-                Node& childNode = nodes[childId];
+void buildAST(const vector<Node*>& nodes, map<int, Node*>& astNodes, int rootId) {
+    if (rootId < 0) return;
 
-                childNode.parentID = node.parentID;
+    Node* root = nodes[rootId];
+    astNodes[root->id] = root;
 
-                if (node.parentID != -1) {
-                    auto& parentChildren = childrenMap[node.parentID];
-                    replace(parentChildren.begin(), parentChildren.end(), id, childId);
+    for (int childId : root->children) {
+        Node* child = nodes[childId];
+        astNodes[child->id] = child;
+        buildAST(nodes, astNodes, childId);
+    }
+}
+
+void generateAST(const string& inputFile, const string& outputFile) {
+    ifstream inFile(inputFile);
+    string line;
+    vector<Node*> allNodes;
+    map<int, Node*> astNodes;
+
+    getline(inFile, line);
+
+    while (getline(inFile, line)) {
+        vector<string> fields = splitCSVLine(line);
+
+        if (fields.size() >= 4) {
+            Node* node = createNode(stoi(fields[0]), stoi(fields[1]), fields[2], fields[3]);
+            if (uselessSymbols.find(node->value) == uselessSymbols.end()) {
+                allNodes.push_back(node);
+                if (node->parentId >= 0) {
+                    allNodes[node->parentId]->children.push_back(node->id);
                 }
-
-                nodesToRemove.push_back(id);
-                changes = true;
+            } else {
+                delete node;
             }
         }
-
-        for (int id : nodesToRemove) {
-            nodes.erase(id);
-            childrenMap.erase(id);
-        }
-    } while (changes);
-
-    for (const auto& [id, node] : nodes) {
-        orderedNodes.push_back(node);
     }
 
-    sort(orderedNodes.begin(), orderedNodes.end(), [](const Node& a, const Node& b) {
-        return a.id < b.id;
-    });
+    int rootId = -1;
+    for (Node* node : allNodes) {
+        if (node->parentId < 0) {
+            rootId = node->id;
+            break;
+        }
+    }
+    cout << "------------" << endl;
+    buildAST(allNodes, astNodes, rootId);
 
-    ofstream outFile(csvFile, ios::trunc);
+    ofstream outFile(outputFile);
     outFile << "ID,PadreID,Valor,Tipo\n";
 
-    for (const auto& node : orderedNodes) {
-        outFile << node.id << "," << node.parentID << "," << node.value << "," << node.type << "\n";
-    }
-}
+    for (auto& pair : astNodes) {
+        Node* node = pair.second;
+        string escapedValue = node->value;
+        bool needsQuotes = escapedValue.find(',') != string::npos || escapedValue.find('"') != string::npos;
 
-void removeUselessSymbols(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    unordered_map<int, vector<int>> childrenMap;
-    vector<Node> orderedNodes;
-    unordered_set<string> uselessSymbols = {"quote", "comma", "{", "}", ";", "(", ")", "if", "for", "else", "'"};
-
-    ifstream file(csvFile);
-    string line;
-    bool firstLine = true;
-
-    while (getline(file, line)) {
-        if (firstLine) {
-            firstLine = false;
-            continue;
-        }
-
-        stringstream ss(line);
-        Node node;
-        string item;
-
-        getline(ss, item, ',');
-        node.id = stoi(item);
-
-        getline(ss, item, ',');
-        node.parentID = stoi(item);
-
-        getline(ss, item, ',');
-        node.value = item;
-
-        getline(ss, item, ',');
-        node.type = item;
-
-        nodes[node.id] = node;
-
-        if (node.parentID != -1) {
-            childrenMap[node.parentID].push_back(node.id);
-        }
-    }
-    file.close();
-
-    bool changes;
-    do {
-        changes = false;
-        vector<int> nodesToRemove;
-
-        for (const auto& [id, node] : nodes) {
-            if (uselessSymbols.find(node.value) != uselessSymbols.end()) {
-                auto& children = childrenMap[id];
-
-                for (int childId : children) {
-                    if (nodes.find(childId) != nodes.end()) {
-                        Node& childNode = nodes[childId];
-                        childNode.parentID = node.parentID;
-                        if (node.parentID != -1) {
-                            childrenMap[node.parentID].push_back(childId);
-                        }
-                    }
-                }
-
-                if (node.parentID != -1) {
-                    auto& parentChildren = childrenMap[node.parentID];
-                    parentChildren.erase(
-                        remove(parentChildren.begin(), parentChildren.end(), id),
-                        parentChildren.end()
-                    );
-                }
-
-                nodesToRemove.push_back(id);
-                changes = true;
+        if (needsQuotes) {
+            string quoted = "\"";
+            for (char c : escapedValue) {
+                if (c == '"') quoted += "\"\"";
+                else quoted += c;
             }
+            quoted += "\"";
+            escapedValue = quoted;
         }
 
-        for (int id : nodesToRemove) {
-            nodes.erase(id);
-            childrenMap.erase(id);
-        }
-    } while (changes);
-
-    for (const auto& [id, node] : nodes) {
-        orderedNodes.push_back(node);
+        outFile << node->id << "," << node->parentId << "," << escapedValue << "," << node->type << "\n";
     }
 
-    sort(orderedNodes.begin(), orderedNodes.end(), [](const Node& a, const Node& b) {
-        return a.id < b.id;
-    });
-
-    ofstream outFile(csvFile, ios::trunc);
-    outFile << "ID,PadreID,Valor,Tipo\n";
-
-    for (const auto& node : orderedNodes) {
-        outFile << node.id << "," << node.parentID << "," << node.value << "," << node.type << "\n";
+    for (Node* node : allNodes) {
+        delete node;
     }
-}
-
-void processEqualNodes(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    ifstream file(csvFile);
-    string line;
-    bool isHeader = true;
-
-    while (getline(file, line)) {
-        if (isHeader) {
-            isHeader = false;
-            continue;
-        }
-
-        stringstream ss(line);
-        string idStr, parentIDStr, value, type;
-        getline(ss, idStr, ',');
-        getline(ss, parentIDStr, ',');
-        getline(ss, value, ',');
-        getline(ss, type, ',');
-
-        Node node;
-        node.id = stoi(idStr);
-        node.parentID = stoi(parentIDStr);
-        node.value = value;
-        node.type = type;
-
-        nodes[node.id] = node;
-    }
-    file.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(id);
-            nodes[node.parentID].hasChildren = true;
-        }
-    }
-
-    vector<int> nodesToRemove;
-    for (auto& [id, node] : nodes) {
-        if (node.value == "=") {
-            int parentID = node.parentID;
-            if (nodes.find(parentID) != nodes.end()) {
-                Node& parentNode = nodes[parentID];
-                if (parentNode.value == "VAR_DECL") {
-                    nodesToRemove.push_back(id);
-                } else if (parentNode.value == "EXPRESSION") {
-                    parentNode.value = "=";
-                    nodesToRemove.push_back(id);
-                }
-            }
-        }
-    }
-
-    for (int id : nodesToRemove) {
-        int parentID = nodes[id].parentID;
-        auto& siblings = nodes[parentID].children;
-        siblings.erase(remove(siblings.begin(), siblings.end(), id), siblings.end());
-        nodes.erase(id);
-    }
-
-    ofstream outFile(csvFile);
-    outFile << "ID,PadreID,Valor,Tipo\n";
-    for (const auto& [id, node] : nodes) {
-        outFile << node.id << "," << node.parentID << "," << node.value << "," << node.type << "\n";
-    }
-    outFile.close();
-}
-
-void processSymbols(const string& csvFile) {
-    unordered_set<string> operators = {
-        "+", "-", "*", "/", "%", "!", ">=", "<=", 
-        "==", "!=", "<", ">", "&&", "||"
-    };
-    
-    vector<Node> nodes;
-    
-    vector<string> lines;
-    ifstream file(csvFile);
-    string line;
-    
-    getline(file, line);
-    lines.push_back(line);
-    
-    while (getline(file, line)) {
-        istringstream ss(line);
-        string token;
-        Node node;
-
-        getline(ss, token, ',');
-        node.id = stoi(token);
-
-        getline(ss, token, ',');
-        node.parentID = stoi(token);
-
-        getline(ss, token, ',');
-        node.value = token;
-
-        getline(ss, token, ',');
-        node.type = token;
-        
-        nodes.push_back(node);
-        lines.push_back(line);
-    }
-    file.close();
-    
-    vector<int> nodesToRemove;
-    for (size_t i = 0; i < nodes.size(); i++) {
-        if (operators.find(nodes[i].value) != operators.end()) {
-            for (auto& parent : nodes) {
-                if (parent.id == nodes[i].parentID) {
-                    parent.value = nodes[i].value;
-                    nodesToRemove.push_back(nodes[i].id);
-                    break;
-                }
-            }
-        }
-    }
-    
-    ofstream outFile(csvFile);
-    outFile << lines[0] << endl;
-    
-    for (size_t i = 1; i < lines.size(); i++) {
-        istringstream ss(lines[i]);
-        string idStr;
-        getline(ss, idStr, ',');
-        int currentId = stoi(idStr);
-        
-        bool shouldSkip = false;
-        for (int removeId : nodesToRemove) {
-            if (currentId == removeId) {
-                shouldSkip = true;
-                break;
-            }
-        }
-        
-        if (!shouldSkip) {
-            for (const Node& node : nodes) {
-                if (node.id == currentId) {
-                    outFile << node.id << ","
-                           << node.parentID << ","
-                           << node.value << ","
-                           << node.type << endl;
-                    break;
-                }
-            }
-        }
-    }
-    outFile.close();
-}
-
-void processExpr(const string& csvFile) {
-    map<int, Node> nodes;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-            nodes[node.parentID].hasChildren = true;
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if ((node.value == "+" || node.value == "-") && nodes[node.parentID].value == "EXPR") {
-            Node& parentExpr = nodes[node.parentID];
-            
-            parentExpr.children.insert(parentExpr.children.end(), node.children.begin(), node.children.end());
-            for (int childID : node.children) {
-                nodes[childID].parentID = parentExpr.id;
-            }
-            
-            parentExpr.value = node.value;
-            parentExpr.children.erase(remove(parentExpr.children.begin(), parentExpr.children.end(), id), parentExpr.children.end());
-            nodes.erase(id);
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (const auto& [id, node] : nodes) {
-        outputFile << node.id << ',' << node.parentID << ',' << node.value << ',' << node.type << '\n';
-    }
-    outputFile.close();
-}
-
-void processTerm(const string& csvFile) {
-    map<int, Node> nodes;
-    ifstream inputFile(csvFile);
-    string line;
-    
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-            nodes[node.parentID].hasChildren = true;
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if ((node.value == "*" || node.value == "/" || node.value == "%") && nodes[node.parentID].value == "TERM") {
-            Node& parentTerm = nodes[node.parentID];
-            
-            parentTerm.children.insert(parentTerm.children.end(), node.children.begin(), node.children.end());
-            for (int childID : node.children) {
-                nodes[childID].parentID = parentTerm.id;
-            }
-            
-            parentTerm.value = node.value;
-            parentTerm.children.erase(remove(parentTerm.children.begin(), parentTerm.children.end(), id), parentTerm.children.end());
-            nodes.erase(id);
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (const auto& [id, node] : nodes) {
-        outputFile << node.id << ',' << node.parentID << ',' << node.value << ',' << node.type << '\n';
-    }
-    outputFile.close();
-}
-
-void processEqExpr(const string& csvFile) {
-    map<int, Node> nodes;
-    ifstream inputFile(csvFile);
-    string line;
-    
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-            nodes[node.parentID].hasChildren = true;
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if ((node.value == "==" || node.value == "!=") && nodes[node.parentID].value == "EQ_EXPR") {
-            Node& parentEqExpr = nodes[node.parentID];
-            
-            parentEqExpr.children.insert(parentEqExpr.children.end(), node.children.begin(), node.children.end());
-            for (int childID : node.children) {
-                nodes[childID].parentID = parentEqExpr.id;
-            }
-            
-            parentEqExpr.value = node.value;
-            parentEqExpr.children.erase(remove(parentEqExpr.children.begin(), parentEqExpr.children.end(), id), parentEqExpr.children.end());
-            nodes.erase(id);
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (const auto& [id, node] : nodes) {
-        outputFile << node.id << ',' << node.parentID << ',' << node.value << ',' << node.type << '\n';
-    }
-    outputFile.close();
-}
-
-void processRelExpr(const string& csvFile) {
-    map<int, Node> nodes;
-    ifstream inputFile(csvFile);
-    string line;
-    
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-            nodes[node.parentID].hasChildren = true;
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if ((node.value == "<" || node.value == ">" || node.value == "<=" || node.value == ">=") && nodes[node.parentID].value == "REL_EXPR") {
-            Node& parentRelExpr = nodes[node.parentID];
-            
-            parentRelExpr.children.insert(parentRelExpr.children.end(), node.children.begin(), node.children.end());
-            for (int childID : node.children) {
-                nodes[childID].parentID = parentRelExpr.id;
-            }
-            
-            parentRelExpr.value = node.value;
-            parentRelExpr.children.erase(remove(parentRelExpr.children.begin(), parentRelExpr.children.end(), id), parentRelExpr.children.end());
-            nodes.erase(id);
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (const auto& [id, node] : nodes) {
-        outputFile << node.id << ',' << node.parentID << ',' << node.value << ',' << node.type << '\n';
-    }
-    outputFile.close();
-}
-
-void processAndExpr(const string& csvFile) {
-    map<int, Node> nodes;
-    ifstream inputFile(csvFile);
-    string line;
-    
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-            nodes[node.parentID].hasChildren = true;
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.value == "&&" && nodes[node.parentID].value == "AND_EXPR") {
-            Node& parentAndExpr = nodes[node.parentID];
-            
-            parentAndExpr.children.insert(parentAndExpr.children.end(), node.children.begin(), node.children.end());
-            for (int childID : node.children) {
-                nodes[childID].parentID = parentAndExpr.id;
-            }
-            
-            parentAndExpr.value = node.value;
-            parentAndExpr.children.erase(remove(parentAndExpr.children.begin(), parentAndExpr.children.end(), id), parentAndExpr.children.end());
-            nodes.erase(id);
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (const auto& [id, node] : nodes) {
-        outputFile << node.id << ',' << node.parentID << ',' << node.value << ',' << node.type << '\n';
-    }
-    outputFile.close();
-}
-
-void processOrExpr(const string& csvFile) {
-    map<int, Node> nodes;
-    ifstream inputFile(csvFile);
-    string line;
-    
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-            nodes[node.parentID].hasChildren = true;
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.value == "||" && nodes[node.parentID].value == "OR_EXPR") {
-            Node& parentOrExpr = nodes[node.parentID];
-            
-            parentOrExpr.children.insert(parentOrExpr.children.end(), node.children.begin(), node.children.end());
-            for (int childID : node.children) {
-                nodes[childID].parentID = parentOrExpr.id;
-            }
-            
-            parentOrExpr.value = node.value;
-            parentOrExpr.children.erase(remove(parentOrExpr.children.begin(), parentOrExpr.children.end(), id), parentOrExpr.children.end());
-            nodes.erase(id);
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (const auto& [id, node] : nodes) {
-        outputFile << node.id << ',' << node.parentID << ',' << node.value << ',' << node.type << '\n';
-    }
-    outputFile.close();
-}
-
-void processFunctions(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    vector<int> nodeOrder;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        nodeOrder.push_back(node.id);
-
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.value == "FUNCTION" && !node.children.empty()) {
-            auto leftChildIt = min_element(node.children.begin(), node.children.end());
-            int leftChildID = *leftChildIt;
-
-            nodes[leftChildID].parentID = node.parentID;
-            
-            if (node.parentID != -1) {
-                auto& parentChildren = nodes[node.parentID].children;
-                replace(parentChildren.begin(), parentChildren.end(), node.id, leftChildID);
-            }
-
-            for (int childID : node.children) {
-                if (childID != leftChildID) {
-                    nodes[childID].parentID = leftChildID;
-                    nodes[leftChildID].children.push_back(childID);
-                }
-            }
-            node.children.clear();
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (int id : nodeOrder) {
-        if (!nodes[id].children.empty() || nodes[id].value != "FUNCTION") {
-            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
-                       << nodes[id].value << ',' << nodes[id].type << '\n';
-        }
-    }
-    outputFile.close();
-}
-
-void processExprList(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    vector<int> nodeOrder;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        nodeOrder.push_back(node.id);
-
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.value == "EXPR_LIST" && !node.children.empty()) {
-            auto leftChildIt = min_element(node.children.begin(), node.children.end());
-            int leftChildID = *leftChildIt;
-
-            nodes[leftChildID].parentID = node.parentID;
-
-            if (node.parentID != -1) {
-                auto& parentChildren = nodes[node.parentID].children;
-                replace(parentChildren.begin(), parentChildren.end(), node.id, leftChildID);
-            }
-
-            for (int childID : node.children) {
-                if (childID != leftChildID) {
-                    nodes[childID].parentID = leftChildID;
-                    nodes[leftChildID].children.push_back(childID);
-                }
-            }
-            node.children.clear();
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (int id : nodeOrder) {
-        if (!nodes[id].children.empty() || nodes[id].value != "EXPR_LIST") {
-            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
-                       << nodes[id].value << ',' << nodes[id].type << '\n';
-        }
-    }
-    outputFile.close();
-}
-
-void processReturnStmt(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    vector<int> nodeOrder;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        nodeOrder.push_back(node.id);
-
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.value == "RETURN_STMT" && !node.children.empty()) {
-            auto returnChildIt = find_if(node.children.begin(), node.children.end(),
-                                              [&nodes](int childID) { return nodes[childID].value == "return"; });
-
-            if (returnChildIt != node.children.end()) {
-                int returnChildID = *returnChildIt;
-
-                nodes[returnChildID].parentID = node.parentID;
-
-                if (node.parentID != -1) {
-                    auto& parentChildren = nodes[node.parentID].children;
-                    replace(parentChildren.begin(), parentChildren.end(), node.id, returnChildID);
-                }
-
-                for (int childID : node.children) {
-                    if (childID != returnChildID) {
-                        nodes[childID].parentID = returnChildID;
-                        nodes[returnChildID].children.push_back(childID);
-                    }
-                }
-                node.children.clear();
-            }
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (int id : nodeOrder) {
-        if (!nodes[id].children.empty() || nodes[id].value != "RETURN_STMT") {
-            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
-                       << nodes[id].value << ',' << nodes[id].type << '\n';
-        }
-    }
-    outputFile.close();
-}
-
-void processPrintStmt(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    vector<int> nodeOrder;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        nodeOrder.push_back(node.id);
-
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.value == "PRINT_STMT" && !node.children.empty()) {
-            auto printChildIt = find_if(node.children.begin(), node.children.end(),
-                                             [&nodes](int childID) { return nodes[childID].value == "print"; });
-
-            if (printChildIt != node.children.end()) {
-                int printChildID = *printChildIt;
-
-                nodes[printChildID].parentID = node.parentID;
-
-                if (node.parentID != -1) {
-                    auto& parentChildren = nodes[node.parentID].children;
-                    replace(parentChildren.begin(), parentChildren.end(), node.id, printChildID);
-                }
-
-                for (int childID : node.children) {
-                    if (childID != printChildID) {
-                        nodes[childID].parentID = printChildID;
-                        nodes[printChildID].children.push_back(childID);
-                    }
-                }
-                node.children.clear();
-            }
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (int id : nodeOrder) {
-        if (!nodes[id].children.empty() || nodes[id].value != "PRINT_STMT") {
-            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
-                       << nodes[id].value << ',' << nodes[id].type << '\n';
-        }
-    }
-    outputFile.close();
-}
-
-void processFactor(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    vector<int> nodeOrder;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        nodeOrder.push_back(node.id);
-
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.value == "FACTOR" && !node.children.empty()) {
-            auto leftChildIt = min_element(node.children.begin(), node.children.end());
-            int leftChildID = *leftChildIt;
-
-            nodes[leftChildID].parentID = node.parentID;
-
-            if (node.parentID != -1) {
-                auto& parentChildren = nodes[node.parentID].children;
-                replace(parentChildren.begin(), parentChildren.end(), node.id, leftChildID);
-            }
-
-            for (int childID : node.children) {
-                if (childID != leftChildID) {
-                    nodes[childID].parentID = leftChildID;
-                    nodes[leftChildID].children.push_back(childID);
-                }
-            }
-            node.children.clear();
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (int id : nodeOrder) {
-        if (!nodes[id].children.empty() || nodes[id].value != "FACTOR") {
-            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
-                       << nodes[id].value << ',' << nodes[id].type << '\n';
-        }
-    }
-    outputFile.close();
-}
-
-void processDeclaration(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    vector<int> nodeOrder;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        nodeOrder.push_back(node.id);
-
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if (node.value == "PROGRAM_REST") {
-            vector<int> declarationChildren;
-            for (int childID : node.children) {
-                if (nodes[childID].value == "DECLARATION") {
-                    declarationChildren.push_back(childID);
-                }
-            }
-
-            if (!declarationChildren.empty()) {
-                int leftDeclarationChildID = *min_element(declarationChildren.begin(), declarationChildren.end());
-
-                nodes[leftDeclarationChildID].parentID = node.parentID;
-
-                if (node.parentID != -1) {
-                    auto& parentChildren = nodes[node.parentID].children;
-                    replace(parentChildren.begin(), parentChildren.end(), node.id, leftDeclarationChildID);
-                }
-
-                for (int childID : node.children) {
-                    if (childID != leftDeclarationChildID) {
-                        nodes[childID].parentID = leftDeclarationChildID;
-                        nodes[leftDeclarationChildID].children.push_back(childID);
-                    }
-                }
-                node.children.clear();
-            }
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (int id : nodeOrder) {
-        if (!nodes[id].children.empty() || nodes[id].value != "PROGRAM_REST") {
-            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
-                       << nodes[id].value << ',' << nodes[id].type << '\n';
-        }
-    }
-    outputFile.close();
-}
-
-void processStmt(const string& csvFile) {
-    unordered_map<int, Node> nodes;
-    vector<int> nodeOrder;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes[node.id] = node;
-        nodeOrder.push_back(node.id);
-
-        if (node.parentID != -1) {
-            nodes[node.parentID].children.push_back(node.id);
-        }
-    }
-    inputFile.close();
-
-    for (auto& [id, node] : nodes) {
-        if ((node.value == "STMT_LIST" || node.value == "STMT_LIST_REST") && !node.children.empty()) {
-            int leftChildID = *min_element(node.children.begin(), node.children.end());
-
-            nodes[leftChildID].parentID = node.parentID;
-
-            if (node.parentID != -1) {
-                auto& parentChildren = nodes[node.parentID].children;
-                replace(parentChildren.begin(), parentChildren.end(), node.id, leftChildID);
-            }
-
-            for (int childID : node.children) {
-                if (childID != leftChildID) {
-                    nodes[childID].parentID = leftChildID;
-                    nodes[leftChildID].children.push_back(childID);
-                }
-            }
-            node.children.clear();
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (int id : nodeOrder) {
-        if (!nodes[id].children.empty() || (nodes[id].value != "STMT_LIST" && nodes[id].value != "STMT_LIST_REST")) {
-            outputFile << nodes[id].id << ',' << nodes[id].parentID << ','
-                       << nodes[id].value << ',' << nodes[id].type << '\n';
-        }
-    }
-    outputFile.close();
-}
-
-void reduceIDs(const string& csvFile) {
-    vector<Node> nodes;
-    map<int, int> idMapping;
-    ifstream inputFile(csvFile);
-    string line;
-
-    getline(inputFile, line);
-    while (getline(inputFile, line)) {
-        stringstream ss(line);
-        Node node;
-        string temp;
-        getline(ss, temp, ',');
-        node.id = stoi(temp);
-        getline(ss, temp, ',');
-        node.parentID = stoi(temp);
-        getline(ss, node.value, ',');
-        getline(ss, node.type, ',');
-
-        nodes.push_back(node);
-    }
-    inputFile.close();
-
-    sort(nodes.begin(), nodes.end(), [](const Node& a, const Node& b) {
-        return a.id < b.id;
-    });
-
-    int newID = 0;
-    for (const auto& node : nodes) {
-        if (idMapping.find(node.id) == idMapping.end()) {
-            idMapping[node.id] = newID++;
-        }
-    }
-
-    for (auto& node : nodes) {
-        node.id = idMapping[node.id];
-        if (node.parentID != -1) {
-            node.parentID = idMapping[node.parentID];
-        }
-    }
-
-    ofstream outputFile(csvFile);
-    outputFile << "ID,PadreID,Valor,Tipo\n";
-    for (const auto& node : nodes) {
-        outputFile << node.id << ',' << node.parentID << ',' << node.value << ',' << node.type << '\n';
-    }
-    outputFile.close();
-}
-
-void createAST(const string& csvFile) {
-    removeUselessSymbols(csvFile);
-    deleteNonTerminalLeafs(csvFile);
-    reduceTree(csvFile);
-    deleteNonTerminalLeafs(csvFile);
-    reduceTree(csvFile);
-    processEqualNodes(csvFile);
-    reduceTree(csvFile);
-    processSymbols(csvFile);
-    processExpr(csvFile);
-    processTerm(csvFile);
-    processEqExpr(csvFile);
-    processRelExpr(csvFile);
-    processAndExpr(csvFile);
-    processOrExpr(csvFile);
-    processFunctions(csvFile);
-    processExprList(csvFile);
-    processReturnStmt(csvFile);
-    processPrintStmt(csvFile);
-    processFactor(csvFile);
-    //processDeclaration(csvFile);
-    //processStmt(csvFile);
-    reduceIDs(csvFile);
 }
 
 class Parser {
@@ -1670,12 +601,10 @@ public:
     bool debug;
     int tab = 0;
 
+    vector<string> errors;
+
     int currentID = 0;
     vector<tuple<int, int, string, string>> tempNodes;
-
-
-    // Definir los tokens de sincronización 
-    const vector<string> syncTokens = {";"};
 
     Parser(vector<tuple<string, string, int, int>>& tkns, bool dbg) {
         tokens = tkns;
@@ -1689,43 +618,14 @@ public:
 
         if (PROGRAM(-1)) {
             writeTreeToFile();
+            generateAST("parseTree.csv", "astTree.csv");
             cout << "Successful parse" << endl;
-            if(parser_error == 1)
-            {
-                cout<<"Sin crear el arbol debido a errores"<<endl;
-            }
-            else{
-                createAST("parseTree.csv");
-            cout << "AST created" << endl;
-            }
-            
         } else {
-            cout << "Error parsing in line " << get<2>(tokens[index]) << ", column " << get<3>(tokens[index]) << ". Token: " << get<1>(tokens[index]) << endl;
+            cout << "Error parsing in line " << get<2>(tokens[index]) << ", column " << get<3>(tokens[index]) << endl;
         }
     }
 
 private:
-
-    // Método de recuperación de errores
-    void synchronize() {
-        cout << "Iniciando recuperacion de error..." << endl;
-        while (index < tokens.size()) {
-            string currentToken = get<1>(tokens[index]);
-            cout<<"Token de error: " << currentToken<<endl;
-            // Si el token actual es uno de los tokens de sincronización, se detiene la recuperación
-            if (find(syncTokens.begin(), syncTokens.end(), currentToken) != syncTokens.end()) {
-                cout << "Recuperacion de error completa en token: " << currentToken << endl;
-                // goNextToken();
-                currentToken = get<1>(tokens[index]);
-                
-                cout << "Token actual: " << currentToken << endl;
-                return;
-            }
-            goNextToken();
-        }
-        cout << "No se encontró un token de sincronización. Fin del análisis." << endl;
-    }
-
     void printTempNodes() {
         cout << "ID\tParentID\tValue\tType" << endl;
         cout << "------------------------------------------" << endl;
@@ -1741,7 +641,13 @@ private:
     }
 
     bool checkToken(const string& token) {
-        return (get<1>(tokens[index]) == token);
+        int tokenSize = token.size();
+        for (int i = 0; i < tokenSize; i++) {
+            if (cursor[i] != token[i]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     void goNextToken() {
@@ -1784,14 +690,6 @@ private:
         }
     }
     
-    void printRestTokens() {
-        cout << "Tokens restantes:" << endl;
-        for (int i = index; i < tokens.size(); i++) {
-            printf("Token: %-20s Value: %-20s Fila: %-20d Columna: %-20d\n", 
-                   get<0>(tokens[i]).c_str(), get<1>(tokens[i]).c_str(), get<2>(tokens[i]) + 1, get<3>(tokens[i]) + 1);
-        }
-    }
-
     class ScopeGuard {
         Parser& parser;
         size_t savedSize;
@@ -1811,6 +709,27 @@ private:
         }
     };
 
+    void reportError(const string& msg) {
+        // Registra el error con la información de la línea y columna
+        string errorMsg = "Error at line " + to_string(get<2>(tokens[index])) + ", column " + to_string(get<3>(tokens[index])) + ": " + msg;
+        errors.push_back(errorMsg);
+        cout << "Error at line " + to_string(get<2>(tokens[index])) + ", column " + to_string(get<3>(tokens[index])) + ": " + get<1>(tokens[index]) << endl;
+    }
+
+    // Función de recuperación en el modo panic
+    void recoverFromError(string syncToken) {
+        syncToken = ";";
+        // Avanzar hasta encontrar el token de sincronización (syncToken)
+        while (index < tokens.size() && get<1>(tokens[index]) != syncToken) {
+            goNextToken();
+        }
+        // Asegurarse de que se ha encontrado el token de sincronización
+        if (index < tokens.size() && get<1>(tokens[index]) == syncToken) {
+            goNextToken(); // Avanzar al siguiente token después del sincronizador
+        }
+    }
+
+
     bool PROGRAM(int parentID) {
         ScopeGuard guard(*this);
         int myID = currentID++;
@@ -1826,10 +745,9 @@ private:
                 }
             }
         }
-            else{
-            cout<<"ERROR in line: "<<get<2>(tokens[index])+1<<endl;
-            parser_error = 1;
-        }
+        reportError("Error");
+        recoverFromError("DECLARATION");
+
         return false;
     }
 
@@ -1853,6 +771,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("DECLARATION");
         return false;
     }
 
@@ -1869,7 +789,8 @@ private:
                 return true;
             }
         }
-        
+        reportError("Error");
+        recoverFromError("FUNCTION");
         return false;
     }
     
@@ -1901,47 +822,8 @@ private:
                                 guard.commit();
                                 return true;
                             }
-                            else{
-                                // cout<<"Error: Expected '}'"<<endl;
-                                // return true;
-                            }
                         }
                     }
-                    else{
-                        cout<<"Error: Expected '{' in line: "<<get<2>(tokens[index])+1<<endl;
-                        parser_error = 1;
-                    synchronize();
-                    if (STMT_LIST(myID)) {
-                            if (checkToken("}")) {
-                                int closeBraceID = currentID++;
-                                addNode(closeBraceID, myID, "}", "terminal");
-                                goNextToken();
-                                guard.commit();
-                                return true;
-                            }
-                            else{
-                            //  synchronize();
-                            }
-                        }
-                    }
-                }
-                else{
-                    cout<<"Error: Expected ')' in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                    synchronize();
-                    if (STMT_LIST(myID)) {
-                            if (checkToken("}")) {
-                                int closeBraceID = currentID++;
-                                addNode(closeBraceID, myID, "}", "terminal");
-                                goNextToken();
-                                guard.commit();
-                                return true;
-                            }
-                            else{
-                            //  synchronize();
-                            }
-                        }
-
                 }
             }
         } else {
@@ -1952,6 +834,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("VAR_DECL");
         return false;
     }
 
@@ -1968,6 +852,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("TYPE");
         return false;
     }
 
@@ -2018,15 +904,13 @@ private:
                                 guard.commit();
                                 return true;
                             }
-                            else{
-                                cout<<"NINGUN TYPE in line: "<<get<2>(tokens[index])+1<<endl;
-                                parser_error = 1;
-                            }
                         }
                     }
                 }
             }
         }
+        reportError("Error");
+        recoverFromError("VOID_TYPE");
         return false;
     }
 
@@ -2050,11 +934,6 @@ private:
                     return true;
                 }
             }
-            else{
-                cout<<"Error: falta cerrar ']' in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                return true;
-            }
         } else {
             printDebug("TYPE_REST -> EOP");
         /* TYPE_REST -> EOP */
@@ -2063,6 +942,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("[");
         return false;
     }
 
@@ -2141,7 +1022,9 @@ private:
                     }
                 }
             }
-        } 
+        }
+        reportError("Error");
+        recoverFromError("VOID_TYPE");
         return false;
     }
 
@@ -2154,7 +1037,7 @@ private:
         /* PARAMS_REST -> , PARAMS */
         if (checkToken(",")) {
             int commaID = currentID++;
-            addNode(commaID, myID, "comma", "terminal");
+            addNode(commaID, myID, ",", "terminal");
             goNextToken();
             if (PARAMS(myID)) {
                 guard.commit();
@@ -2168,6 +1051,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError(",");
         return false;
     }
 
@@ -2201,20 +1086,9 @@ private:
                     }
                 }
             }
-            else{
-                cout<<"ERROR SIGNO DE ASIGNACION FALTANTE in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                 synchronize();
-                 if (checkToken(";")) {
-                        int semicolonID = currentID++;
-                        addNode(semicolonID, myID, ";", "terminal");
-                        goNextToken();
-                        guard.commit();
-                        return true;
-                    }
-
-            }
         }
+        reportError("Error");
+        recoverFromError("EXPRESSION");
         return false;
     }
 
@@ -2231,6 +1105,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("STATEMENT");
         return false;
     };
 
@@ -2254,6 +1130,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("STATEMENT");
         return false;
     }
 
@@ -2314,24 +1192,18 @@ private:
                                             guard.commit();
                                             return true;
                                         }
-                                        else{
-                                    cout<<"LLAVES in line: "<<get<2>(tokens[index])+1<<endl;
-                                    parser_error = 1;
-                                }
                                     }
                                 }
-                                
                             }
                         }
                     }
                 } 
             }
         }
+        reportError("Error");
+        recoverFromError("{");
         return false;
     }
-
-
-
 
     bool IF_STMT(int parentID) {
         ScopeGuard guard(*this);
@@ -2367,88 +1239,14 @@ private:
                                         return true;
                                     }
                                 }
-                                else{
-                                    cout<<"Error: Expected '}'. in line: "<<get<2>(tokens[index])+1<<endl;
-                                    parser_error = 1;
-                                    synchronize();  // Sincronización cuando no se encuentra '('.
-                                    if (STMT_LIST(myID)) {                            
-                                        if (checkToken("}")) {
-                                            int closeCurlyBracesID = currentID++;
-                                            addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                            goNextToken();
-                                            if (IF_STMT_REST(myID)) {
-                                                guard.commit();
-                                                return true;
-                                            }
-                                        }
-                                        else{
-                                            // synchronize();
-                                        }
-                                    }
-                                }
                             }
                         }
-                        else{
-                           cout<<"Error: Expected '{'. in line: "<<get<2>(tokens[index])+1<<endl;
-                           parser_error = 1;
-                            synchronize();  // Sincronización cuando no se encuentra '('.
-                            if (STMT_LIST(myID)) {                            
-                                if (checkToken("}")) {
-                                    int closeCurlyBracesID = currentID++;
-                                    addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                    goNextToken();
-                                    if (IF_STMT_REST(myID)) {
-                                        guard.commit();
-                                        return true;
-                                    }
-                                }
-                                else{
-                                    // synchronize();
-                                }
-                            }
-                        }
-                    }
-                    else{
-                       cout<<"Error: Expected ')'. in line: "<<get<2>(tokens[index])+1<<endl;
-                       parser_error = 1;
-                        synchronize();  // Sincronización cuando no se encuentra '('.
-                        if (STMT_LIST(myID)) {                            
-                            if (checkToken("}")) {
-                                int closeCurlyBracesID = currentID++;
-                                addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                goNextToken();
-                                if (IF_STMT_REST(myID)) {
-                                    guard.commit();
-                                    return true;
-                                }
-                            }
-                            else{
-                                // synchronize();
-                            }
-                        }
-                    }
-                }
-            }
-            else{
-                cout<<"Error: Expected '('. in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                synchronize();  // Sincronización cuando no se encuentra '('.
-                if (STMT_LIST(myID)) {                            
-                    if (checkToken("}")) {
-                        int closeCurlyBracesID = currentID++;
-                        addNode(closeCurlyBracesID, myID, "}", "terminal");
-                        goNextToken();
-                        if (IF_STMT_REST(myID)) {
-                            guard.commit();
-                            return true;
-                        }
-                    }
-                    else{
-                        // synchronize();
                     }
                 }
             }
         }
+        reportError("Error");
+        recoverFromError("if");
         return false;
     }
 
@@ -2467,7 +1265,6 @@ private:
                 int openCurlyBracesID = currentID++;
                 addNode(openCurlyBracesID, myID, "{", "terminal");
                 goNextToken();
-                
                 if (STMT_LIST(myID)) {
                     if (checkToken("}")) {
                         int closeCurlyBracesID = currentID++;
@@ -2475,29 +1272,6 @@ private:
                         goNextToken();
                         guard.commit();
                         return true;
-                    }
-                    else{
-                       cout<<"LLAVES ELSE in line: "<<get<2>(tokens[index])+1<<endl;
-                       parser_error = 1;
-                    }
-                }
-            }
-            else{
-                cout<<"Error: Expected '{'. in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                synchronize();  // Sincronización cuando no se encuentra '('.
-                if (STMT_LIST(myID)) {                            
-                    if (checkToken("}")) {
-                        int closeCurlyBracesID = currentID++;
-                        addNode(closeCurlyBracesID, myID, "}", "terminal");
-                        goNextToken();
-                        if (IF_STMT_REST(myID)) {
-                            guard.commit();
-                            return true;
-                        }
-                    }
-                    else{
-                        // synchronize();
                     }
                 }
             }
@@ -2509,6 +1283,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("else");
         return false;
     }
 
@@ -2550,167 +1326,17 @@ private:
                                                 guard.commit();
                                                 return true;
                                             }
-                                            else{
-                                                cout<<"FALTA LLAVES FOR in line: "<<get<2>(tokens[index])+1<<endl;
-                                                parser_error = 1;
-                                            }
                                         }
                                     }
-                                    else{
-                                        cout<<"Error: Expected '{'. in line: "<<get<2>(tokens[index])+1<<endl;
-                                        parser_error = 1;
-                                    synchronize(); 
-                                    if (STMT_LIST(myID)) {
-                                            if (checkToken("}")) {
-                                                int closeCurlyBracesID = currentID++;
-                                                addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                                goNextToken();
-                                                guard.commit();
-                                                return true;
-                                            }
-                                            else{
-                                                // synchronize();
-                                            }
-                                        }
-                                    }
-                                }
-                                else{
-                                    cout<<"Error: Expected ')'. in line: "<<get<2>(tokens[index])+1<<endl;
-                                    parser_error = 1;
-                                    synchronize(); 
-                                    if (STMT_LIST(myID)) {
-                                            if (checkToken("}")) {
-                                                int closeCurlyBracesID = currentID++;
-                                                addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                                goNextToken();
-                                                guard.commit();
-                                                return true;
-                                            }
-                                            else{
-                                                // synchronize();
-                                            }
-                                        }
                                 }
                             }
-                        }
-                        else{
-                            cout<<"Error: Expected ';' en el for in line: "<<get<2>(tokens[index])+1<<endl;
-                            parser_error = 1;
-                            synchronize();
-                            if (EXPR_STMT(myID)) {
-                                if (checkToken(")")) {
-                                    int closeParID = currentID++;
-                                    addNode(closeParID, myID, ")", "terminal");
-                                    goNextToken();
-                                    if (checkToken("{")) {
-                                        int openCurlyBracesID = currentID++;
-                                        addNode(openCurlyBracesID, myID, "{", "terminal");
-                                        goNextToken();
-                                        if (STMT_LIST(myID)) {
-                                            if (checkToken("}")) {
-                                                int closeCurlyBracesID = currentID++;
-                                                addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                                goNextToken();
-                                                guard.commit();
-                                                return true;
-                                            }
-                                            else{
-                                                // synchronize();
-                                            }
-                                        }
-                                    }
-                                    else{
-                                        cout<<"Error: Expected '{'. in line: "<<get<2>(tokens[index])+1<<endl;
-                                        parser_error = 1;
-                                    synchronize(); 
-                                    if (STMT_LIST(myID)) {
-                                            if (checkToken("}")) {
-                                                int closeCurlyBracesID = currentID++;
-                                                addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                                goNextToken();
-                                                guard.commit();
-                                                return true;
-                                            }
-                                            else{
-                                                // synchronize();
-                                            }
-                                        }
-                                    }
-                                }
-                                else{
-                                    cout<<"Error: Expected ')'. in line: "<<get<2>(tokens[index])+1<<endl;
-                                    parser_error = 1;
-                                    synchronize(); 
-                                    if (STMT_LIST(myID)) {
-                                            if (checkToken("}")) {
-                                                int closeCurlyBracesID = currentID++;
-                                                addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                                goNextToken();
-                                                guard.commit();
-                                                return true;
-                                            }
-                                            else{
-                                                // synchronize();
-                                            }
-                                        }
-                                }
-                            }
-
-                        }
-                    }
-                }
-            }
-            else{
-                cout<<"Error: Expected '('. in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                synchronize(); 
-                if (EXPR_STMT(myID)) {
-                    if (EXPRESSION(myID)) {
-                        if (checkToken(";")) {
-                            int semicolonID = currentID++;
-                            addNode(semicolonID, myID, ";", "terminal");
-                            goNextToken();
-                            if (EXPR_STMT(myID)) {
-                                if (checkToken(")")) {
-                                    int closeParID = currentID++;
-                                    addNode(closeParID, myID, ")", "terminal");
-                                    goNextToken();
-                                    if (checkToken("{")) {
-                                        int openCurlyBracesID = currentID++;
-                                        addNode(openCurlyBracesID, myID, "{", "terminal");
-                                        goNextToken();
-                                        if (STMT_LIST(myID)) {
-                                            if (checkToken("}")) {
-                                                int closeCurlyBracesID = currentID++;
-                                                addNode(closeCurlyBracesID, myID, "}", "terminal");
-                                                goNextToken();
-                                                guard.commit();
-                                                return true;
-                                            }
-                                            else{
-                                                // synchronize();
-                                            }
-                                        }
-                                    }
-                                    else{
-                                        // synchronize();
-                                    }
-                                }
-                                else{
-                                    // synchronize();
-                                }
-                            }
-                        }
-                        else{
-                            // synchronize();
                         }
                     }
                 }
             }
         }
-        else{
-            // synchronize();
-        }
+        reportError("Error");
+        recoverFromError("for");
         return false;
     }
 
@@ -2733,13 +1359,10 @@ private:
                     guard.commit();
                     return true;
                 }
-                else{
-                    cout<<"Error: expected ';' en return in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                    return true;
-                }
             }
         }
+        reportError("Error");
+        recoverFromError("return");
         return false;
     }
 
@@ -2770,44 +1393,12 @@ private:
                             guard.commit();
                             return true;
                         }
-                        else{
-                            cout<<"Error: Expected ';'. in line: "<<get<2>(tokens[index])+1<<endl;
-                            parser_error = 1;
-                            return true;
-                        }
                     }
-                    else{
-                cout<<"Error: Expected ')'. in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                synchronize(); 
-                if (checkToken(";")) {
-                            int semicolonID = currentID++;
-                            addNode(semicolonID, myID, ";", "terminal");
-                            goNextToken();
-                            guard.commit();
-                            return true;
-                        }
-                        else{
-                            cout<<"Error: Expected ';'. in line: "<<get<2>(tokens[index])+1<<endl;
-                            parser_error = 1;
-                            return true;
-                        }
-            }
                 }
             }
-            else{
-                cout<<"Error: Expected '('. in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                synchronize(); 
-                if (checkToken(";")) {
-                            int semicolonID = currentID++;
-                            addNode(semicolonID, myID, ";", "terminal");
-                            goNextToken();
-                            guard.commit();
-                            return true;
-                        }
-            }
         }
+        reportError("Error");
+        recoverFromError("print");
         return false;
     }
 
@@ -2826,11 +1417,6 @@ private:
                 guard.commit();
                 return true;
             }
-            else{
-                cout<<"Error: Expected ';'. in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                            return true;
-            }
         } else {
             printDebug("EXPR_STMT -> ;");
             /* EXPR_STMT -> ; */
@@ -2842,6 +1428,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("EXPRESSION");
         return false;
     }
 
@@ -2858,6 +1446,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("EXPRESSION");
         return false;
     }
 
@@ -2870,7 +1460,7 @@ private:
         /* EXPR_LIST_REST -> , EXPR_LIST */
         if (checkToken(",")) {
             int commaID = currentID++;
-            addNode(commaID, myID, "comma", "terminal");
+            addNode(commaID, myID, ",", "terminal");
             goNextToken();
             if (EXPR_LIST(myID)) {
                 guard.commit();
@@ -2884,6 +1474,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError(",");
         return false;
     }
 
@@ -2928,7 +1520,8 @@ private:
                 return true;
             }
         }
-        
+        reportError("Error");
+        recoverFromError("OR_EXPR");
         return false;
     }
 
@@ -2945,6 +1538,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("AND_EXPR");
         return false;
     }
 
@@ -2973,6 +1568,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("OR_EXPR_REST");
         return false;
     }
 
@@ -2989,6 +1586,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("AND_EXPR");
         return false;
     }
 
@@ -3017,6 +1616,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("&&");
         return false;
     }
 
@@ -3033,6 +1634,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("REL_EXPR");
         return false;
     }
 
@@ -3048,8 +1651,10 @@ private:
             addNode(equalID, myID, "==", "terminal");
             goNextToken();
             if (REL_EXPR(myID)) {
-                guard.commit();
-                return true;
+                if (EQ_EXPR_REST(myID)) {
+                    guard.commit();
+                    return true;
+                }
             }
         } else {
             printDebug("EQ_EXPR_REST -> != REL_EXPR");
@@ -3063,32 +1668,9 @@ private:
                     return true;
                 }
             }
-            else if(checkToken("!"))
-            {
-                cout<<"Error: expected != en lugar de ! in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                int notEqualID = currentID++;
-                addNode(notEqualID, myID, "!=", "terminal");
-                goNextToken();
-                if (REL_EXPR(myID)) {
-                    guard.commit();
-                    return true;
-                }
-            }
-            else if(checkToken("="))
-            {
-                cout<<"Error: expected != en lugar de = in line: "<<get<2>(tokens[index])+1<<endl;
-                parser_error = 1;
-                int notEqualID = currentID++;
-                addNode(notEqualID, myID, "!=", "terminal");
-                goNextToken();
-                if (REL_EXPR(myID)) {
-                    guard.commit();
-                    return true;
-                }
-            }
-
-        } 
+        }
+        reportError("Error");
+        recoverFromError("!=");
         return false;
     }
 
@@ -3113,6 +1695,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("EQ_EXPR_REST");
         return false;
     }
 
@@ -3129,6 +1713,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("EXPR");
         return false;
     }
 
@@ -3180,12 +1766,12 @@ private:
                             guard.commit();
                             return true;
                         }
-                        
                     }
-                    
                 }
             }
         }
+        reportError("Error");
+        recoverFromError(">=");
         return false;
     }
 
@@ -3210,6 +1796,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("REL_EXPR_REST");
         return false;
     }
 
@@ -3226,6 +1814,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("TERM");
         return false;
     }
 
@@ -3244,11 +1834,6 @@ private:
                 guard.commit();
                 return true;
             }
-            else{
-                    cout<<"falta un termino del operador + in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                    return true;
-                }
         }
         else {
             printDebug("EXPR_REST -> - TERM");
@@ -3260,13 +1845,10 @@ private:
                     guard.commit();
                     return true;
                 }
-                else{
-                    cout<<"falta un termino del operador - in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                    return true;
-                }
             }
         }
+        reportError("Error");
+        recoverFromError("-");
         return false;
     }
 
@@ -3291,6 +1873,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("EXPR_REST");
         return false;
     }
 
@@ -3307,6 +1891,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError("UNARY");
         return false;
     }
 
@@ -3325,10 +1911,6 @@ private:
                 guard.commit();
                 return true;
             }
-            else{
-                    cout<<"Falta un termino del operador * in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                }
         } else {
             printDebug("TERM_REST -> / UNARY");
         /* TERM_REST -> / UNARY */
@@ -3339,10 +1921,6 @@ private:
                 if (UNARY(myID)) {
                     guard.commit();
                     return true;
-                }
-                else{
-                    cout<<"Falta un termino del operador / in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
                 }
             } else {
                 printDebug("TERM_REST -> % UNARY");
@@ -3355,14 +1933,11 @@ private:
                         guard.commit();
                         return true;
                     }
-                    else{
-                    cout<<"Falta un termino del operador %. in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
                 }
-                }
-                
             }
         }
+        reportError("Error");
+        recoverFromError("%");
         return false;
     }
 
@@ -3387,6 +1962,8 @@ private:
                 return true;
             }
         } 
+        reportError("Error");
+        recoverFromError("TERM_REST");
         return false;  
     }
 
@@ -3405,10 +1982,6 @@ private:
                 guard.commit();
                 return true;
             }
-            else{
-                    cout<<"Falta un termino del operador ! in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                }
         } else {
             printDebug("UNARY -> - UNARY");
         /* UNARY -> - UNARY */
@@ -3420,10 +1993,6 @@ private:
                     guard.commit();
                     return true;
                 }
-                else{
-                    cout<<"Falta un termino del operador - in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                }
             } else {
                 printDebug("UNARY -> FACTOR");
         /* UNARY -> FACTOR */
@@ -3432,7 +2001,9 @@ private:
                     return true;
                 }
             }
-        } 
+        }
+        reportError("Error");
+        recoverFromError("FACTOR");
         return false;
     }
 
@@ -3497,15 +2068,6 @@ private:
                                             return true;
                                         }
                                     }
-                                    else{
-                                        cout<<"Error: Expected ')' in line: "<<get<2>(tokens[index])+1<<endl;
-                                        parser_error = 1;
-                                        synchronize();
-                                        if (FACTOR_REST(myID)) {
-                                            guard.commit();
-                                            return true;
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -3513,6 +2075,8 @@ private:
                 }
             }
         }
+        reportError("Error");
+        recoverFromError("(");
         return false;
     }
 
@@ -3537,11 +2101,6 @@ private:
                         return true;
                     }
                 }
-                else{
-                    cout<<"falta cerrar ']' in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                    return true;
-                }
             }
         } else {
             printDebug("FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST");
@@ -3560,11 +2119,6 @@ private:
                             return true;
                         }
                     }
-                    else{
-                    cout<<"falta cerrar ')' in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                    return true;
-                }
                 }
             } else {
                 printDebug("FACTOR_REST -> EOP");
@@ -3575,6 +2129,8 @@ private:
                 }
             }
         }
+        reportError("Error");
+        recoverFromError("(");
         return false;
     }
 
@@ -3596,7 +2152,8 @@ private:
             guard.commit();
             return true;
         }
-
+        reportError("Error");
+        recoverFromError(";");
         return false;
     }
 
@@ -3614,6 +2171,8 @@ private:
             guard.commit();
             return true;
         }
+        reportError("Error");
+        recoverFromError("integer");
         return false;
     }
 
@@ -3631,6 +2190,8 @@ private:
             guard.commit();
             return true;
         }
+        reportError("Error");
+        recoverFromError("boolean");
         return false;
     }
 
@@ -3648,6 +2209,8 @@ private:
             guard.commit();
             return true;
         }
+        reportError("Error");
+        recoverFromError("char");
         return false;
     }
 
@@ -3665,6 +2228,8 @@ private:
             guard.commit();
             return true;
         }
+        reportError("Error");
+        recoverFromError("string");
         return false;
     }
 
@@ -3682,6 +2247,8 @@ private:
             guard.commit();
             return true;
         }
+        reportError("Error");
+        recoverFromError("void");
         return false;
     }
 
@@ -3699,6 +2266,8 @@ private:
             guard.commit();
             return true;
         }
+        reportError("Error");
+        recoverFromError(";");
         return false;
     }
 
@@ -3726,6 +2295,8 @@ private:
                 }
             }
         }
+        reportError("Error");
+        recoverFromError(";");
         return false;
     }
 
@@ -3738,7 +2309,7 @@ private:
         /* STRING_LITERAL -> " <Check Token Type> " */
         if (checkToken("\"")) {
             int openDoubleQuouteID = currentID++;
-            addNode(openDoubleQuouteID, myID, "quote", "terminal");
+            addNode(openDoubleQuouteID, myID, "\"", "terminal");
             goNextToken();
             if (checkTokenType("STRING")) {
                 int stringID = currentID++;
@@ -3746,17 +2317,15 @@ private:
                 goNextToken();
                 if (checkToken("\"")) {
                     int closeDoubleQuouteID = currentID++;
-                    addNode(closeDoubleQuouteID, myID, "quote", "terminal");
+                    addNode(closeDoubleQuouteID, myID, "\"", "terminal");
                     goNextToken();
                     guard.commit();
                     return true;
                 }
-                else{
-                    cout<<"Error: expected \" in line: "<<get<2>(tokens[index])+1<<endl;
-                    parser_error = 1;
-                }
             }
         }
+        reportError("Error");
+        recoverFromError(";");
         return false;
     }
 
@@ -3784,6 +2353,8 @@ private:
                 return true;
             }
         }
+        reportError("Error");
+        recoverFromError(";");
         return false;
     }
 };
@@ -3791,7 +2362,7 @@ private:
 int main() {
     Scanner scanner;
 
-    vector<vector<char>> buffer = scanner.readBMMFile("input5.bmm");
+    vector<vector<char>> buffer = scanner.readBMMFile("input4.bmm");
 
     // for (int i = 0; i < buffer.size(); i++) {
     //     for (int j = 0; j < buffer[i].size(); j++) {
@@ -3806,15 +2377,15 @@ int main() {
         cout<<"Successful scanner"<<endl;
     }
     else {
-        cout<<"------SCANNER TERMINADO CON "<<errores_encontrados.size() <<" ERRORES"<<endl;
-        for(int i =0 ; i <errores_encontrados.size();i++)
-        {
-            cout << get<0>(errores_encontrados[i])  << get<1>(errores_encontrados[i]) << "' en fila " 
-                     << get<2>(errores_encontrados[i]) << ", columna " << get<3>(errores_encontrados[i])-1<< endl;
-        }
+        // cout<<"------SCANNER TERMINADO CON "<<errores_encontrados.size() <<" ERRORES"<<endl;
+        // for(int i =0 ; i <errores_encontrados.size();i++)
+        // {
+        //     cout << get<0>(errores_encontrados[i])  << get<1>(errores_encontrados[i]) << "' en fila " 
+        //              << get<2>(errores_encontrados[i]) << ", columna " << get<3>(errores_encontrados[i])-1<< endl;
+        // }
     }
     // for (int i = 0; i < tokens.size(); i++) {
-    //    printf("Token: %-20s Value: %-20s Fila: %-20d Columna: %-20d\n", 
+    //     printf("Token: %-20s Value: %-20s Fila: %-20d Columna: %-20d\n", 
     //    get<0>(tokens[i]).c_str(), get<1>(tokens[i]).c_str(), get<2>(tokens[i]) + 1, get<3>(tokens[i]) + 1);
     // }
 
