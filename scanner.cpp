@@ -460,6 +460,7 @@ public:
     bool debug;
     int tab = 0;
 
+    vector<string> syncTokens;
     ErrorDetection errorDetected;
 
     Parser(vector<tuple<string, string, int, int>>& tkns, bool dbg) {
@@ -467,6 +468,8 @@ public:
         cursor = get<1>(tokens[0]).c_str();
         index = 0;
         debug = dbg;
+
+        syncTokens = {"array", "boolean", "char", "else", "false", "for", "function", "if", "integer", "map", "print", "return", "string", "true", "void", "while", ",", ";", ":", "(", ")", "[", "]", "{", "}", "\"", "++", "--", "+", "-", "*", "/", "%", "^", "&&", "||", "!", "=", "<", ">", "<=", ">=", "==", "!="};
 
         if (PROGRAM()) {
             cout << "Successful parse" << endl;
@@ -523,6 +526,16 @@ private:
         //tab++;
     }
 
+    void synchronize() {
+        while (index < tokens.size()) {
+            string token = get<0>(tokens[index]);
+            if (find(syncTokens.begin(), syncTokens.end(), token) != syncTokens.end()) {
+                return;
+            }
+            index++;
+        }
+    }
+
     bool PROGRAM() {
         printDebug("PROGRAM -> DECLARATION PROGRAM_REST");
         /* PROGRAM -> DECLARATION PROGRAM_REST */
@@ -537,9 +550,11 @@ private:
             }
          else {
                 errorDetected.addError("Error: Se esperaba PROGRAM_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba DECLARATION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
         return false;
     }
@@ -552,6 +567,7 @@ private:
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba PROGRAM_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             
@@ -561,6 +577,7 @@ private:
                 return true;
             }else {
                 errorDetected.addError("Error: Se esperaba EOP", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         }
         return false;
@@ -575,9 +592,11 @@ private:
             }
         else {
                 errorDetected.addError("Error: Se esperaba DECLARATION_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba FUNCTION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
         return false;
     }
@@ -598,18 +617,23 @@ private:
                                 return true;
                             }else {
                                 errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                synchronize();
                             }
                         } else {
                             errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     } else {
                         errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba PARAMS", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             printDebug("DECLARATION_REST -> VAR_DECL");
@@ -618,6 +642,7 @@ private:
                 return true;
             } else{
                 errorDetected.addError("Error: Se esperaba VAR_DECL", get<1>(tokens[index]), get<2>(tokens[index]),get<3>(tokens[index]));
+                synchronize();
             }
         }
         return false;
@@ -631,9 +656,11 @@ private:
                 return true;
             } else{
                 errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]),get<3>(tokens[index]));
+                synchronize();
             }
         } else{
                 errorDetected.addError("Error: Se esperaba TYPE", get<1>(tokens[index]), get<2>(tokens[index]),get<3>(tokens[index]));
+                synchronize();
         }
         return false;
     }
@@ -646,6 +673,7 @@ private:
                 return true;
             } else {
             errorDetected.addError("Error: Se esperaba TYPE_REST despues de INT_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
         } else {
             
@@ -656,6 +684,7 @@ private:
                     return true;
                 } else {
                 errorDetected.addError("Error: Se esperaba TYPE_REST despues de BOOL_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
             } else {
                 
@@ -666,6 +695,7 @@ private:
                         return true;
                     }else {
                     errorDetected.addError("Error: Se esperaba TYPE_REST despues de CHAR_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
                 } else {
                     
@@ -676,6 +706,7 @@ private:
                             return true;
                         }else {
                         errorDetected.addError("Error: Se esperaba TYPE_REST despues de STRING_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                     } else {
                         
@@ -686,9 +717,11 @@ private:
                                  return true;
                         } else {
                             errorDetected.addError("Error: Se esperaba TYPE_REST despues de VOID_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     } else {
                         errorDetected.addError("Error: Se esperaba un tipo valido (INT_TYPE, BOOL_TYPE, CHAR_TYPE, STRING_TYPE, VOID_TYPE)", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 }
             }
@@ -708,9 +741,11 @@ private:
                     return true;
                 }else {
                 errorDetected.addError("Error: Se esperaba TYPE_REST despues de '[]'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba ']' despues de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
         } else {
             
@@ -720,6 +755,7 @@ private:
                 return true;
             }else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
         }
         return false;
@@ -735,12 +771,15 @@ private:
                     return true;
                 } else {
                     errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba TYPE_REST despues de INT_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("PARAMS -> BOOL_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
@@ -752,12 +791,15 @@ private:
                         return true;
                     } else {
                         errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba TYPE_REST despues de BOOL_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             printDebug("PARAMS -> CHAR_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
@@ -769,12 +811,15 @@ private:
                             return true;
                         } else {
                             errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     } else {
                         errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     errorDetected.addError("Error: Se esperaba TYPE_REST despues de CHAR_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 printDebug("PARAMS -> STRING_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
@@ -786,12 +831,15 @@ private:
                                 return true;
                             } else {
                                 errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                synchronize();
                             }
                         } else {
                             errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     } else {
                         errorDetected.addError("Error: Se esperaba TYPE_REST despues de STRING_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     printDebug("PARAMS -> VOID_TYPE TYPE_REST IDENTIFIER PARAMS_REST");
@@ -803,12 +851,15 @@ private:
                                     return true;
                                 } else {
                                     errorDetected.addError("Error: Se esperaba PARAMS_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                    synchronize();
                                 }
                             } else {
                                 errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                synchronize();
                             }
                         } else {
                             errorDetected.addError("Error: Se esperaba TYPE_REST despues de VOID_TYPE", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     } else {
                         printDebug("PARAMS -> EOP");
@@ -817,6 +868,7 @@ private:
                             return true;
                         } else {
                             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     }
                 }
@@ -834,6 +886,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba PARAMS despues de ','", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("PARAMS_REST -> EOP");
@@ -842,6 +895,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -864,12 +918,15 @@ bool PARAMS_REST() {
                     return true;
                 } else {
                     errorDetected.addError("Error: Se esperaba ';' despues de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba EXPRESSION despues de '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba ';' o '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -883,9 +940,11 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba STMT_LIST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba STATEMENT", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -898,6 +957,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba STMT_LIST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("STMT_LIST_REST -> EOP");
@@ -906,6 +966,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -919,6 +980,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba VAR_DECL despues de FUNCTION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("STATEMENT -> IF_STMT");
@@ -956,12 +1018,15 @@ bool PARAMS_REST() {
                                         return true;
                                     } else {
                                         errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                        synchronize();
                                     }
                                 } else {
                                     errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                    synchronize();
                                 }
                             } else {
                                 errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                synchronize();
                             }
                         }
                     }
@@ -993,21 +1058,27 @@ bool PARAMS_REST() {
                                     }
                                 } else {
                                     errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                    synchronize();
                                 }
                             } else {
                                 errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                synchronize();
                             }
                         } else {
                             errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     } else {
                         errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     errorDetected.addError("Error: Se esperaba EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         }
         return false;
@@ -1025,12 +1096,15 @@ bool PARAMS_REST() {
                     return true;
                 } else {
                     errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("IF_STMT_REST -> EOP");
@@ -1039,6 +1113,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1066,33 +1141,43 @@ bool PARAMS_REST() {
                                             return true;
                                         } else {
                                             errorDetected.addError("Error: Se esperaba '}'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                            synchronize();
                                         }
                                     } else {
                                         errorDetected.addError("Error: Se esperaba STMT_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                        synchronize();
                                     }
                                 } else {
                                     errorDetected.addError("Error: Se esperaba '{'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                    synchronize();
                                 }
                             } else {
                                 errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                synchronize();
                             }
                         } else {
                             errorDetected.addError("Error: Se esperaba EXPR_STMT despues de ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     } else {
                         errorDetected.addError("Error: Se esperaba ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     errorDetected.addError("Error: Se esperaba EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba EXPR_STMT", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba 'for'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1108,12 +1193,15 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba ';' despues de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba EXPRESSION despues de 'return'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba 'return'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1133,18 +1221,23 @@ bool PARAMS_REST() {
                         return true;
                     } else {
                         errorDetected.addError("Error: Se esperaba ';' despues de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     errorDetected.addError("Error: Se esperaba ')' despues de EXPR_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba EXPR_LIST despues de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba '(' despues de 'print'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba 'print'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1158,6 +1251,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba ';' despues de EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("EXPR_STMT -> ;");
@@ -1167,6 +1261,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba ';'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1180,9 +1275,11 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba EXPR_LIST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba EXPRESSION", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1196,6 +1293,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba EXPR_LIST despues de ','", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("EXPR_LIST_REST -> EOP");
@@ -1204,6 +1302,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1221,6 +1320,7 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba EXPRESSION despues de '='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
                 flag = true;
             }
         } else {
@@ -1237,6 +1337,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba OR_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1250,9 +1351,11 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba OR_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba AND_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1267,9 +1370,11 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba OR_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba AND_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("OR_EXPR_REST -> EOP");
@@ -1278,6 +1383,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1291,9 +1397,11 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba AND_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba EQ_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1308,9 +1416,11 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba AND_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba EQ_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("AND_EXPR_REST -> EOP");
@@ -1319,6 +1429,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1332,9 +1443,11 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba EQ_EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba REL_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1349,9 +1462,11 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba EQ_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba REL_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("EQ_EXPR_REST -> != REL_EXPR");
@@ -1363,9 +1478,11 @@ bool PARAMS_REST() {
                     return true;
                 } else {
                     errorDetected.addError("Error: Se esperaba EQ_EXPR_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba REL_EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         }
     }
@@ -1380,6 +1497,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba EQ_EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("EQ_EXPR_REST_REST -> EOP");
@@ -1388,6 +1506,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1401,9 +1520,11 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba REL_EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba EXPR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1417,6 +1538,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba EXPR despues de '<'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("REL_EXPR_REST -> > EXPR");
@@ -1427,6 +1549,7 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba EXPR despues de '>'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             printDebug("REL_EXPR_REST -> <= EXPR");
@@ -1437,6 +1560,7 @@ bool PARAMS_REST() {
                     return true;
                 } else {
                     errorDetected.addError("Error: Se esperaba EXPR despues de '<='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 printDebug("REL_EXPR_REST -> >= EXPR");
@@ -1447,6 +1571,7 @@ bool PARAMS_REST() {
                         return true;
                     } else {
                         errorDetected.addError("Error: Se esperaba EXPR despues de '>='", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 }
             }
@@ -1463,6 +1588,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba REL_EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("REL_EXPR_REST_REST -> EOP");
@@ -1471,6 +1597,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1484,9 +1611,11 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba TERM", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1500,6 +1629,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba TERM despues de '+'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("EXPR_REST -> - TERM");
@@ -1510,6 +1640,7 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba TERM despues de '-'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         }
     }
@@ -1524,6 +1655,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba EXPR_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("EXPR_REST_REST -> EOP");
@@ -1532,6 +1664,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1545,9 +1678,11 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba TERM_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba UNARY", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1561,6 +1696,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba UNARY despues de '*'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("TERM_REST -> / UNARY");
@@ -1571,6 +1707,7 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba UNARY despues de '/'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             printDebug("TERM_REST -> % UNARY");
@@ -1581,6 +1718,7 @@ bool PARAMS_REST() {
                     return true;
                 } else {
                     errorDetected.addError("Error: Se esperaba UNARY despues de '%'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             }
         }
@@ -1596,6 +1734,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba TERM_REST_REST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("TERM_REST_REST -> EOP");
@@ -1604,6 +1743,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
@@ -1618,6 +1758,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba UNARY despues de '!'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("UNARY -> - UNARY");
@@ -1628,6 +1769,7 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba UNARY despues de '-'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             printDebug("UNARY -> FACTOR");
@@ -1636,6 +1778,7 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba FACTOR", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         }
     }
@@ -1650,6 +1793,7 @@ bool PARAMS_REST() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba FACTOR_REST despues de IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("FACTOR -> INT_LITERAL FACTOR_REST");
@@ -1659,6 +1803,7 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba FACTOR_REST despues de INT_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             printDebug("FACTOR -> CHAR_LITERAL FACTOR_REST");
@@ -1668,6 +1813,7 @@ bool PARAMS_REST() {
                     return true;
                 } else {
                     errorDetected.addError("Error: Se esperaba FACTOR_REST despues de CHAR_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 printDebug("FACTOR -> STRING_LITERAL FACTOR_REST");
@@ -1677,6 +1823,7 @@ bool PARAMS_REST() {
                         return true;
                     } else {
                         errorDetected.addError("Error: Se esperaba FACTOR_REST despues de STRING_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     printDebug("FACTOR -> BOOL_LITERAL FACTOR_REST");
@@ -1686,6 +1833,7 @@ bool PARAMS_REST() {
                             return true;
                         } else {
                             errorDetected.addError("Error: Se esperaba FACTOR_REST despues de BOOL_LITERAL", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     } else {
                         printDebug("FACTOR -> ( EXPRESSION ) FACTOR_REST");
@@ -1699,15 +1847,19 @@ bool PARAMS_REST() {
                                         return true;
                                     } else {
                                         errorDetected.addError("Error: Se esperaba FACTOR_REST despues de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                        synchronize();
                                     }
                                 } else {
                                     errorDetected.addError("Error: Se esperaba ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                    synchronize();
                                 }
                             } else {
                                 errorDetected.addError("Error: Se esperaba EXPRESSION despues de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                                synchronize();
                             }
                         } else {
                             errorDetected.addError("Error: Se esperaba '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                            synchronize();
                         }
                     }
                 }
@@ -1729,12 +1881,15 @@ bool PARAMS_REST() {
                     return true;
                 } else {
                     errorDetected.addError("Error: Se esperaba FACTOR_REST despues de ']'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba ']' despues de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba EXPRESSION despues de '['", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         printDebug("FACTOR_REST -> ( EXPR_LIST ) FACTOR_REST");
@@ -1748,12 +1903,15 @@ bool PARAMS_REST() {
                         return true;
                     } else {
                         errorDetected.addError("Error: Se esperaba FACTOR_REST despues de ')'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                        synchronize();
                     }
                 } else {
                     errorDetected.addError("Error: Se esperaba ')' despues de EXPR_LIST", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                    synchronize();
                 }
             } else {
                 errorDetected.addError("Error: Se esperaba EXPR_LIST despues de '('", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             printDebug("FACTOR_REST -> EOP");
@@ -1762,6 +1920,7 @@ bool PARAMS_REST() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba el fin de la producción", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         }
     }
@@ -1780,6 +1939,7 @@ bool PARAMS_REST() {
         return true;
     } else {
         errorDetected.addError("Error: Se esperaba IDENTIFIER", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1792,6 +1952,7 @@ bool PARAMS_REST() {
         return true;
     } else {
         errorDetected.addError("Error: Se esperaba 'integer'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1804,6 +1965,7 @@ bool BOOL_TYPE() {
         return true;
     } else {
         errorDetected.addError("Error: Se esperaba 'boolean'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1816,6 +1978,7 @@ bool CHAR_TYPE() {
         return true;
     } else {
         errorDetected.addError("Error: Se esperaba 'char'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1828,6 +1991,7 @@ bool STRING_TYPE() {
         return true;
     } else {
         errorDetected.addError("Error: Se esperaba 'string'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1840,6 +2004,7 @@ bool VOID_TYPE() {
         return true;
     } else {
         errorDetected.addError("Error: Se esperaba 'void'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1852,6 +2017,7 @@ bool VOID_TYPE() {
         return true;
     } else {
         errorDetected.addError("Error: Se esperaba un literal entero", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1868,12 +2034,15 @@ bool CHAR_LITERAL() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba ' despues del carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba un carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba ' antes del carácter", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1890,12 +2059,15 @@ bool STRING_LITERAL() {
                 return true;
             } else {
                 errorDetected.addError("Error: Se esperaba \" despues de la cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+                synchronize();
             }
         } else {
             errorDetected.addError("Error: Se esperaba una cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     } else {
         errorDetected.addError("Error: Se esperaba \" antes de la cadena", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+        synchronize();
     }
     return false;
 }
@@ -1914,6 +2086,7 @@ bool BOOL_LITERAL() {
             return true;
         } else {
             errorDetected.addError("Error: Se esperaba 'true' o 'false'", get<1>(tokens[index]), get<2>(tokens[index]), get<3>(tokens[index]));
+            synchronize();
         }
     }
     return false;
