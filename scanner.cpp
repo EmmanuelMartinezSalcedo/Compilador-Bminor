@@ -538,7 +538,7 @@ private:
                 cout << "Synchronization token found: " << token << endl;
                 return;
             }
-            index++;
+            goNextToken();
         }
         cout << "Reached end of tokens during synchronization." << endl;
     }
