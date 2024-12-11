@@ -1825,19 +1825,21 @@ private:
 
     unordered_map<string, Symbol> symbolTable;
 
-    void validateDeclaration(const string& value, const string& parentID) {
-    if (symbolTable.find(parentID) != symbolTable.end()) {
+void validateDeclaration(const string& varType, const string& varName) {
+    if (symbolTable.find(varName) != symbolTable.end()) {
         cerr << "Error semantico: Duplicacion en la declaracion de la variable '" 
-             << parentID << "' de tipo " << value << endl;
+             << varName << "' de tipo " << varType << endl;
         return;
     }
 
     Symbol symbol;
-    symbol.name = parentID;
-    symbol.type = value;
-    symbolTable[parentID] = symbol;
+    symbol.name = varName;
+    symbol.type = varType;
+    symbolTable[varName] = symbol;
 
-        }
+    cout << "Declaracion valida: " << varName << " de tipo " << varType << endl;
+}
+
     vector<int> getChildren(int parentID, const string& csvFile) {
     ifstream inputFile(csvFile);
     string line;
@@ -2049,38 +2051,41 @@ private:
     }
 
     void validateSemantics(const string& csvFile) {
-        ifstream file(csvFile);
-        string line;
+    ifstream file(csvFile);
+    string line;
 
-        if (!file.is_open()) {
-            cerr << "Error al abrir el archivo del AST." << endl;
-            return;
+    if (!file.is_open()) {
+        cerr << "Error al abrir el archivo del AST." << endl;
+        return;
+    }
+
+    getline(file, line); // Leer encabezado
+    while (getline(file, line)) {
+        stringstream ss(line);
+        string idStr, parentIDStr, value, type;
+        getline(ss, idStr, ',');
+        getline(ss, parentIDStr, ',');
+        getline(ss, value, ',');
+        getline(ss, type, ',');
+
+        int nodeID = stoi(idStr);
+
+        if (type == "DECLARATION") {
+            // Extraer tipo y nombre desde el nodo
+            string varType = getNodeType(nodeID);
+            string varName = getNodeName(nodeID);
+            validateDeclaration(varType, varName);
+        } else if (type == "ASSIGNMENT") {
+            validateAssignment(value, nodeID, csvFile);
+        } else if (type == "FUNCTION_CALL") {
+            vector<int> argumentIDs = extractArguments(nodeID, csvFile);
+            validateFunctionCall(value, argumentIDs, csvFile);
+        } else if (type == "EXPRESSION") {
+            validateExpression(nodeID, csvFile);
         }
+    }
 
-        getline(file, line); // Leer encabezado
-        while (getline(file, line)) {
-            stringstream ss(line);
-            string idStr, parentIDStr, value, type;
-            getline(ss, idStr, ',');
-            getline(ss, parentIDStr, ',');
-            getline(ss, value, ',');
-            getline(ss, type, ',');
-
-            int nodeID = stoi(idStr);
-
-            if (type == "DECLARATION") {
-                validateDeclaration(value, csvFile);
-            } else if (type == "ASSIGNMENT") {
-                validateAssignment(value, nodeID, csvFile); // Pasa el nodo de la expresion
-            } else if (type == "FUNCTION_CALL") {
-                vector<int> argumentIDs = extractArguments(nodeID, csvFile);
-                validateFunctionCall(value, argumentIDs, csvFile); // Pasa los argumentos
-            } else if (type == "EXPRESSION") {
-                validateExpression(nodeID, csvFile); // Pasa el ID del nodo
-            }
-        }
-
-        file.close();
+    file.close();
     }
 
     string getNodeName(int nodeID) {
