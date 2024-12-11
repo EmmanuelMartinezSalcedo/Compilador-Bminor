@@ -1697,6 +1697,9 @@ public:
             else{
                 createAST("parseTree.csv");
             cout << "AST created" << endl;
+
+                validateSemantics("parseTree.csv");
+                cout << "Semantic validation complete" << endl;
             }
             
         } else {
@@ -2174,6 +2177,10 @@ private:
         /* DECLARATION -> FUNCTION DECLARATION_REST*/
         if (FUNCTION(myID)) {
             if (DECLARATION_REST(myID)) {
+
+                string varName = getNodeName(myID);
+                string varType = getNodeType(myID);
+                validateDeclaration(varType, varName);
                 guard.commit();
                 return true;
             }
@@ -3214,6 +3221,10 @@ private:
                     goNextToken();
                     
                     if (EXPRESSION(myID)) {
+
+                        string varName = getNodeName(myID);
+                        int exprID = getExpressionNodeID(myID);
+                        validateAssignment(varName, exprID, "parseTree.csv");
                         assignmentGuard.commit();
                         guard.commit();
                         return true;
