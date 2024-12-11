@@ -1811,6 +1811,315 @@ private:
         }
     };
 
+
+    struct Symbol {
+        string name;
+        string type;
+        int scopeLevel;
+        bool isFunction = false;
+        vector<string> parameters; // Si es función
+    };
+
+    unordered_map<string, Symbol> symbolTable;
+
+    void validateDeclaration(const string& value, const string& parentID) {
+        string varType = value; // Asumimos que el tipo está en `value`
+
+        if (symbolTable.find(parentID) != symbolTable.end()){
+
+                cerr << "Error semántico: Duplicación en la declaración de " << parentID << endl;
+                return;
+        }
+
+            Symbol symbol;
+            symbol.name = parentID;
+            symbol.type = varType;
+            symbolTable[parentID] = symbol;
+
+            cout << "Declaración válida: " << parentID << " de tipo " << varType << endl;
+        }
+
+    string evaluateExpressionType(int expressionID, const string& csvFile) {
+        unordered_map<int, Node> nodes;
+        ifstream inputFile(csvFile);
+        string line;
+
+        // Cargar el AST en memoria
+        getline(inputFile, line); // Leer encabezado
+        while (getline(inputFile, line)) {
+            stringstream ss(line);
+            Node node;
+            string temp;
+
+            getline(ss, temp, ',');
+            node.id = stoi(temp);
+            getline(ss, temp, ',');
+            node.parentID = stoi(temp);
+            getline(ss, node.value, ',');
+            getline(ss, node.type, ',');
+
+            nodes[node.id] = node;
+        }
+        inputFile.close();
+
+        // Verificar si el nodo existe
+        if (nodes.find(expressionID) == nodes.end()) {
+            cerr << "Error: Nodo de expresión no encontrado en el AST. ID: " << expressionID << endl;
+            return "";
+        }
+
+        Node& expressionNode = nodes[expressionID];
+
+        // Evaluar literales
+        if (expressionNode.type == "INTEGER") {
+            return "integer";
+        } else if (expressionNode.type == "STRING") {
+            return "string";
+        } else if (expressionNode.type == "CHAR") {
+            return "char";
+        } else if (expressionNode.type == "BOOLEAN") {
+            return "boolean";
+        }
+
+        // Evaluar operadores binarios
+        if (expressionNode.value == "+" || expressionNode.value == "-" ||
+            expressionNode.value == "*" || expressionNode.value == "/" ||
+            expressionNode.value == "%") {
+            if (expressionNode.children.size() < 2) {
+                cerr << "Error: Operador binario con menos de dos operandos. Nodo ID: " << expressionID << endl;
+                return "";
+            }
+
+            int leftChildID = expressionNode.children[0];
+            int rightChildID = expressionNode.children[1];
+
+            string leftType = evaluateExpressionType(leftChildID, csvFile);
+            string rightType = evaluateExpressionType(rightChildID, csvFile);
+
+            if (leftType == "integer" && rightType == "integer") {
+                return "integer";
+            } else {
+                cerr << "Error: Tipos incompatibles para operador binario '" << expressionNode.value
+                    << "' en Nodo ID: " << expressionID << endl;
+                return "";
+            }
+        }
+
+        // Evaluar operadores lógicos
+        if (expressionNode.value == "&&" || expressionNode.value == "||") {
+            if (expressionNode.children.size() < 2) {
+                cerr << "Error: Operador lógico con menos de dos operandos. Nodo ID: " << expressionID << endl;
+                return "";
+            }
+
+            int leftChildID = expressionNode.children[0];
+            int rightChildID = expressionNode.children[1];
+
+            string leftType = evaluateExpressionType(leftChildID, csvFile);
+            string rightType = evaluateExpressionType(rightChildID, csvFile);
+
+            if (leftType == "boolean" && rightType == "boolean") {
+                return "boolean";
+            } else {
+                cerr << "Error: Tipos incompatibles para operador lógico '" << expressionNode.value
+                    << "' en Nodo ID: " << expressionID << endl;
+                return "";
+            }
+        }
+
+        // Evaluar comparaciones
+        if (expressionNode.value == "==" || expressionNode.value == "!=" ||
+            expressionNode.value == "<" || expressionNode.value == ">" ||
+            expressionNode.value == "<=" || expressionNode.value == ">=") {
+            if (expressionNode.children.size() < 2) {
+                cerr << "Error: Operador de comparación con menos de dos operandos. Nodo ID: " << expressionID << endl;
+                return "";
+            }
+
+            int leftChildID = expressionNode.children[0];
+            int rightChildID = expressionNode.children[1];
+
+            string leftType = evaluateExpressionType(leftChildID, csvFile);
+            string rightType = evaluateExpressionType(rightChildID, csvFile);
+
+            if (leftType == rightType) {
+                return "boolean";
+            } else {
+                cerr << "Error: Tipos incompatibles para operador de comparación '" << expressionNode.value
+                    << "' en Nodo ID: " << expressionID << endl;
+                return "";
+            }
+        }
+
+        // Evaluar identificadores (variables o funciones)
+        if (expressionNode.type == "IDENTIFIER") {
+            if (symbolTable.find(expressionNode.value) == symbolTable.end()) {
+                cerr << "Error: Variable no declarada: " << expressionNode.value << endl;
+                return "";
+            }
+
+            return symbolTable[expressionNode.value].type;
+        }
+
+        cerr << "Error: No se pudo determinar el tipo de la expresión para Nodo ID: " << expressionID << endl;
+        return "";
+    }
+
+    void validateAssignment(const string& variable, int expressionID, const string& csvFile) {
+        if (symbolTable.find(variable) == symbolTable.end()) {
+            cerr << "Error semántico: Variable no declarada: " << variable << endl;
+            return;
+        }
+
+        string varType = symbolTable[variable].type;
+        string exprType = evaluateExpressionType(expressionID, csvFile);
+
+        if (varType != exprType) {
+            cerr << "Error semántico: Asignación incompatible. Variable " << variable
+                << " de tipo " << varType << " no puede ser asignada a " << exprType << endl;
+        }
+    }
+
+    void validateFunctionCall(const string& functionName, vector<int> argumentIDs, const string& csvFile) {
+        if (symbolTable.find(functionName) == symbolTable.end()) {
+            cerr << "Error semántico: Función no declarada: " << functionName << endl;
+            return;
+        }
+
+        Symbol func = symbolTable[functionName];
+        if (!func.isFunction) {
+            cerr << "Error semántico: " << functionName << " no es una función." << endl;
+            return;
+        }
+
+        if (argumentIDs.size() != func.parameters.size()) {
+            cerr << "Error semántico: Número de parámetros incorrecto en la llamada a " << functionName << endl;
+            return;
+        }
+
+        for (size_t i = 0; i < argumentIDs.size(); ++i) {
+            string argType = evaluateExpressionType(argumentIDs[i], csvFile);
+            if (argType != func.parameters[i]) {
+                cerr << "Error semántico: Tipo de parámetro incompatible en la llamada a " << functionName
+                    << ". Se esperaba " << func.parameters[i] << " pero se recibió " << argType << endl;
+            }
+        }
+
+        cout << "Llamada a función válida: " << functionName << endl;
+    }
+
+    void validateExpression(int expressionID, const string& csvFile) {
+        string exprType = evaluateExpressionType(expressionID, csvFile);
+        if (exprType.empty()) {
+            cerr << "Error semántico: Tipo de expresión no válido para Nodo ID: " << expressionID << endl;
+        } else {
+            cout << "Expresión válida. Tipo: " << exprType << endl;
+        }
+    }
+
+
+    vector<int> extractArguments(int functionCallID, const string& csvFile) {
+        unordered_map<int, Node> nodes;
+        ifstream inputFile(csvFile);
+        string line;
+
+        // Cargar el AST en memoria
+        getline(inputFile, line); // Leer encabezado
+        while (getline(inputFile, line)) {
+            stringstream ss(line);
+            Node node;
+            string temp;
+
+            getline(ss, temp, ',');
+            node.id = stoi(temp);
+            getline(ss, temp, ',');
+            node.parentID = stoi(temp);
+            getline(ss, node.value, ',');
+            getline(ss, node.type, ',');
+
+            nodes[node.id] = node;
+        }
+        inputFile.close();
+
+        if (nodes.find(functionCallID) == nodes.end()) {
+            cerr << "Error: Nodo de llamada a función no encontrado. ID: " << functionCallID << endl;
+            return {};
+        }
+
+        Node& funcNode = nodes[functionCallID];
+        vector<int> argumentIDs;
+
+        for (int childID : funcNode.children) {
+            if (nodes[childID].type == "ARGUMENT") {
+                argumentIDs.push_back(childID);
+            }
+        }
+
+        return argumentIDs;
+    }
+
+    void validateSemantics(const string& csvFile) {
+        ifstream file(csvFile);
+        string line;
+
+        if (!file.is_open()) {
+            cerr << "Error al abrir el archivo del AST." << endl;
+            return;
+        }
+
+        getline(file, line); // Leer encabezado
+        while (getline(file, line)) {
+            stringstream ss(line);
+            string idStr, parentIDStr, value, type;
+            getline(ss, idStr, ',');
+            getline(ss, parentIDStr, ',');
+            getline(ss, value, ',');
+            getline(ss, type, ',');
+
+            int nodeID = stoi(idStr);
+
+            if (type == "DECLARATION") {
+                validateDeclaration(value, csvFile);
+            } else if (type == "ASSIGNMENT") {
+                validateAssignment(value, nodeID, csvFile); // Pasa el nodo de la expresión
+            } else if (type == "FUNCTION_CALL") {
+                vector<int> argumentIDs = extractArguments(nodeID, csvFile);
+                validateFunctionCall(value, argumentIDs, csvFile); // Pasa los argumentos
+            } else if (type == "EXPRESSION") {
+                validateExpression(nodeID, csvFile); // Pasa el ID del nodo
+            }
+        }
+
+        file.close();
+    }
+
+    string getNodeName(int nodeID) {
+        for (const auto& node : tempNodes) {
+            if (get<0>(node) == nodeID) {
+                return get<2>(node); // El valor del nodo
+            }
+        }
+        return "";
+    }
+
+    string getNodeType(int nodeID) {
+        for (const auto& node : tempNodes) {
+            if (get<0>(node) == nodeID) {
+                return get<3>(node); // El tipo del nodo
+            }
+        }
+        return "";
+    }
+
+    int getExpressionNodeID(int parentID) {
+        for (const auto& node : tempNodes) {
+            if (get<1>(node) == parentID && get<3>(node) == "EXPRESSION") {
+                return get<0>(node); // ID del nodo de la expresión
+            }
+        }
+        return -1;
+    }
+
     bool PROGRAM(int parentID) {
         ScopeGuard guard(*this);
         int myID = currentID++;
@@ -3791,7 +4100,7 @@ private:
 int main() {
     Scanner scanner;
 
-    vector<vector<char>> buffer = scanner.readBMMFile("input5.bmm");
+    vector<vector<char>> buffer = scanner.readBMMFile("input3.bmm");
 
     // for (int i = 0; i < buffer.size(); i++) {
     //     for (int j = 0; j < buffer[i].size(); j++) {
