@@ -1,0 +1,29 @@
+// Declaraciones validas
+integer x = 10;
+integer y = 5;
+string name = "Test";
+boolean isValid = true;
+
+// Asignaciones correctas
+x = 1 + y; 
+name = "NewName"; 
+isValid = false; 
+
+// Errores semanticos
+z = x + y; 
+integer a = x + b; 
+y = "text"; 
+
+// Uso incorrecto de operadores
+x = 1 + "string"; 
+isValid = 10 && "boolean"; 
+
+// Declaraciones duplicadas
+integer x = 20; 
+
+// Uso incorrecto en expresiones
+boolean result = x > "string"; 
+
+//funcion con parametros no declarados
+
+void foo(a,b){}
