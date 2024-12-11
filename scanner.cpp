@@ -202,9 +202,9 @@ public:
             c = getchar(buffer, row, col);
             value += c;
 
-            // Revisar si es un carácter válido o un carácter de escape
+            // Revisar si es un caracter valido o un caracter de escape
             if (c == '\\') {
-                c = getchar(buffer, row, col); // Capturar el carácter escapado
+                c = getchar(buffer, row, col); // Capturar el caracter escapado
                 value += c;
             }
 
@@ -280,7 +280,7 @@ public:
             char next = peekchar(buffer, row, col);
             string potentialOp = op + next;
             if (isOperator(potentialOp)) {
-                getchar(buffer, row, col); // avanzar al siguiente carácter
+                getchar(buffer, row, col); // avanzar al siguiente caracter
                 if(potentialOp == "++")
                 {
                     return {"PLUSPLUS",potentialOp};
@@ -395,7 +395,7 @@ public:
             
         }
 
-        // Si el carácter es inválido, registrar error
+        // Si el caracter es invalido, registrar error
         errores_encontrados.push_back(tuple("Error: Caracter no valido: '",string(1,c),row+1,col+1));
         return {"ERROR", string(1, c)};
     }
@@ -1674,7 +1674,7 @@ public:
     vector<tuple<int, int, string, string>> tempNodes;
 
 
-    // Definir los tokens de sincronización 
+    // Definir los tokens de sincronizacion 
     const vector<string> syncTokens = {";"};
 
     Parser(vector<tuple<string, string, int, int>>& tkns, bool dbg) {
@@ -1709,13 +1709,13 @@ public:
 
 private:
 
-    // Método de recuperación de errores
+    // Método de recuperacion de errores
     void synchronize() {
         cout << "Iniciando recuperacion de error..." << endl;
         while (index < tokens.size()) {
             string currentToken = get<1>(tokens[index]);
             cout<<"Consumiendo tokens hasta sincronizar: " << currentToken<<endl;
-            // Si el token actual es uno de los tokens de sincronización, se detiene la recuperación
+            // Si el token actual es uno de los tokens de sincronizacion, se detiene la recuperacion
             if (find(syncTokens.begin(), syncTokens.end(), currentToken) != syncTokens.end()) {
                 cout << "Recuperacion de error completa en token: " << currentToken << endl;
                 // goNextToken();
@@ -1726,7 +1726,7 @@ private:
             }
             goNextToken();
         }
-        cout << "No se encontró un token de sincronización. Fin del análisis." << endl;
+        cout << "No se encontro un token de sincronizacion. Fin del analisis." << endl;
     }
 
     void printTempNodes() {
@@ -1820,26 +1820,23 @@ private:
         string type;
         int scopeLevel;
         bool isFunction = false;
-        vector<string> parameters; // Si es función
+        vector<string> parameters; // Si es funcion
     };
 
     unordered_map<string, Symbol> symbolTable;
 
     void validateDeclaration(const string& value, const string& parentID) {
-        string varType = value; // Asumimos que el tipo está en `value`
+    if (symbolTable.find(parentID) != symbolTable.end()) {
+        cerr << "Error semantico: Duplicacion en la declaracion de la variable '" 
+             << parentID << "' de tipo " << value << endl;
+        return;
+    }
 
-        if (symbolTable.find(parentID) != symbolTable.end()){
+    Symbol symbol;
+    symbol.name = parentID;
+    symbol.type = value;
+    symbolTable[parentID] = symbol;
 
-                cerr << "Error semántico: Duplicación en la declaración de " << parentID << endl;
-                return;
-        }
-
-            Symbol symbol;
-            symbol.name = parentID;
-            symbol.type = varType;
-            symbolTable[parentID] = symbol;
-
-            cout << "Declaración válida: " << parentID << " de tipo " << varType << endl;
         }
 
     string evaluateExpressionType(int expressionID, const string& csvFile) {
@@ -1867,7 +1864,7 @@ private:
 
         // Verificar si el nodo existe
         if (nodes.find(expressionID) == nodes.end()) {
-            cerr << "Error: Nodo de expresión no encontrado en el AST. ID: " << expressionID << endl;
+            cerr << "Error: Nodo de expresion no encontrado en el AST. ID: " << expressionID << endl;
             return "";
         }
 
@@ -1908,10 +1905,10 @@ private:
             }
         }
 
-        // Evaluar operadores lógicos
+        // Evaluar operadores logicos
         if (expressionNode.value == "&&" || expressionNode.value == "||") {
             if (expressionNode.children.size() < 2) {
-                cerr << "Error: Operador lógico con menos de dos operandos. Nodo ID: " << expressionID << endl;
+                cerr << "Error: Operador logico con menos de dos operandos. Nodo ID: " << expressionID << endl;
                 return "";
             }
 
@@ -1924,7 +1921,7 @@ private:
             if (leftType == "boolean" && rightType == "boolean") {
                 return "boolean";
             } else {
-                cerr << "Error: Tipos incompatibles para operador lógico '" << expressionNode.value
+                cerr << "Error: Tipos incompatibles para operador logico '" << expressionNode.value
                     << "' en Nodo ID: " << expressionID << endl;
                 return "";
             }
@@ -1935,7 +1932,7 @@ private:
             expressionNode.value == "<" || expressionNode.value == ">" ||
             expressionNode.value == "<=" || expressionNode.value == ">=") {
             if (expressionNode.children.size() < 2) {
-                cerr << "Error: Operador de comparación con menos de dos operandos. Nodo ID: " << expressionID << endl;
+                cerr << "Error: Operador de comparacion con menos de dos operandos. Nodo ID: " << expressionID << endl;
                 return "";
             }
 
@@ -1948,7 +1945,7 @@ private:
             if (leftType == rightType) {
                 return "boolean";
             } else {
-                cerr << "Error: Tipos incompatibles para operador de comparación '" << expressionNode.value
+                cerr << "Error: Tipos incompatibles para operador de comparacion '" << expressionNode.value
                     << "' en Nodo ID: " << expressionID << endl;
                 return "";
             }
@@ -1964,13 +1961,13 @@ private:
             return symbolTable[expressionNode.value].type;
         }
 
-        cerr << "Error: No se pudo determinar el tipo de la expresión para Nodo ID: " << expressionID << endl;
+        cerr << "Error: No se pudo determinar el tipo de la expresion para Nodo ID: " << expressionID << endl;
         return "";
     }
 
     void validateAssignment(const string& variable, int expressionID, const string& csvFile) {
         if (symbolTable.find(variable) == symbolTable.end()) {
-            cerr << "Error semántico: Variable no declarada: " << variable << endl;
+            cerr << "Error semantico: Variable no declarada: '" << variable << "'" << endl;
             return;
         }
 
@@ -1978,49 +1975,61 @@ private:
         string exprType = evaluateExpressionType(expressionID, csvFile);
 
         if (varType != exprType) {
-            cerr << "Error semántico: Asignación incompatible. Variable " << variable
-                << " de tipo " << varType << " no puede ser asignada a " << exprType << endl;
+            cerr << "Error semantico: Asignacion incompatible. Variable '" << variable
+                << "' de tipo " << varType << " no puede ser asignada a una expresion de tipo " 
+                << exprType << endl;
         }
     }
 
     void validateFunctionCall(const string& functionName, vector<int> argumentIDs, const string& csvFile) {
         if (symbolTable.find(functionName) == symbolTable.end()) {
-            cerr << "Error semántico: Función no declarada: " << functionName << endl;
+            cerr << "Error semantico: Funcion no declarada: '" << functionName << "'" << endl;
             return;
         }
 
         Symbol func = symbolTable[functionName];
         if (!func.isFunction) {
-            cerr << "Error semántico: " << functionName << " no es una función." << endl;
+            cerr << "Error semantico: '" << functionName << "' no es una funcion." << endl;
             return;
         }
 
         if (argumentIDs.size() != func.parameters.size()) {
-            cerr << "Error semántico: Número de parámetros incorrecto en la llamada a " << functionName << endl;
+            cerr << "Error semantico: Numero de parametros incorrecto en la llamada a '" 
+                << functionName << "'. Se esperaban " << func.parameters.size() 
+                << " parametros pero se recibieron " << argumentIDs.size() << "." << endl;
             return;
         }
 
         for (size_t i = 0; i < argumentIDs.size(); ++i) {
             string argType = evaluateExpressionType(argumentIDs[i], csvFile);
             if (argType != func.parameters[i]) {
-                cerr << "Error semántico: Tipo de parámetro incompatible en la llamada a " << functionName
-                    << ". Se esperaba " << func.parameters[i] << " pero se recibió " << argType << endl;
+                cerr << "Error semantico: Tipo de parametro incompatible en la llamada a '"
+                    << functionName << "'. Se esperaba " << func.parameters[i]
+                    << " pero se recibio " << argType << "." << endl;
             }
         }
 
-        cout << "Llamada a función válida: " << functionName << endl;
+        cout << "Llamada a funcion valida: " << functionName << endl;
     }
 
     void validateExpression(int expressionID, const string& csvFile) {
         string exprType = evaluateExpressionType(expressionID, csvFile);
         if (exprType.empty()) {
-            cerr << "Error semántico: Tipo de expresión no válido para Nodo ID: " << expressionID << endl;
+            cerr << "Error semantico: Tipo de expresion no valido para Nodo ID: " << expressionID << endl;
         } else {
-            cout << "Expresión válida. Tipo: " << exprType << endl;
+            cout << "Expresion valida. Tipo: " << exprType << endl;
         }
     }
 
-
+    vector<int> getArguments(int functionCallID) {
+    vector<int> argumentIDs;
+        for (const auto& node : tempNodes) {
+            if (get<1>(node) == functionCallID && get<3>(node) == "ARGUMENT") {
+                argumentIDs.push_back(get<0>(node));
+            }
+        }
+        return argumentIDs;
+    }
     vector<int> extractArguments(int functionCallID, const string& csvFile) {
         unordered_map<int, Node> nodes;
         ifstream inputFile(csvFile);
@@ -2045,7 +2054,7 @@ private:
         inputFile.close();
 
         if (nodes.find(functionCallID) == nodes.end()) {
-            cerr << "Error: Nodo de llamada a función no encontrado. ID: " << functionCallID << endl;
+            cerr << "Error: Nodo de llamada a funcion no encontrado. ID: " << functionCallID << endl;
             return {};
         }
 
@@ -2084,7 +2093,7 @@ private:
             if (type == "DECLARATION") {
                 validateDeclaration(value, csvFile);
             } else if (type == "ASSIGNMENT") {
-                validateAssignment(value, nodeID, csvFile); // Pasa el nodo de la expresión
+                validateAssignment(value, nodeID, csvFile); // Pasa el nodo de la expresion
             } else if (type == "FUNCTION_CALL") {
                 vector<int> argumentIDs = extractArguments(nodeID, csvFile);
                 validateFunctionCall(value, argumentIDs, csvFile); // Pasa los argumentos
@@ -2117,7 +2126,7 @@ private:
     int getExpressionNodeID(int parentID) {
         for (const auto& node : tempNodes) {
             if (get<1>(node) == parentID && get<3>(node) == "EXPRESSION") {
-                return get<0>(node); // ID del nodo de la expresión
+                return get<0>(node); // ID del nodo de la expresion
             }
         }
         return -1;
@@ -2669,6 +2678,10 @@ private:
                         int closeParID = currentID++;
                         addNode(closeParID, myID, ")", "terminal");
                         goNextToken();
+
+                        string functionName = getNodeName(myID);
+                    vector<int> argumentIDs = getArguments(myID);
+                    validateFunctionCall(functionName, argumentIDs, "parseTree.csv");
                         if (checkToken("{")) {
                             int openCurlyBracesID = currentID++;
                             addNode(openCurlyBracesID, myID, "{", "terminal");
@@ -2686,7 +2699,7 @@ private:
                                 else{
                                     cout<<"Error: Expected '}'. in line: "<<get<2>(tokens[index])+1<<endl;
                                     parser_error = 1;
-                                    synchronize();  // Sincronización cuando no se encuentra '('.
+                                    synchronize();  // Sincronizacion cuando no se encuentra '('.
                                     if (STMT_LIST(myID)) {                            
                                         if (checkToken("}")) {
                                             int closeCurlyBracesID = currentID++;
@@ -2707,7 +2720,7 @@ private:
                         else{
                            cout<<"Error: Expected '{'. in line: "<<get<2>(tokens[index])+1<<endl;
                            parser_error = 1;
-                            synchronize();  // Sincronización cuando no se encuentra '('.
+                            synchronize();  // Sincronizacion cuando no se encuentra '('.
                             if (STMT_LIST(myID)) {                            
                                 if (checkToken("}")) {
                                     int closeCurlyBracesID = currentID++;
@@ -2727,7 +2740,7 @@ private:
                     else{
                        cout<<"Error: Expected ')'. in line: "<<get<2>(tokens[index])+1<<endl;
                        parser_error = 1;
-                        synchronize();  // Sincronización cuando no se encuentra '('.
+                        synchronize();  // Sincronizacion cuando no se encuentra '('.
                         if (STMT_LIST(myID)) {                            
                             if (checkToken("}")) {
                                 int closeCurlyBracesID = currentID++;
@@ -2748,7 +2761,7 @@ private:
             else{
                 cout<<"Error: Expected '('. in line: "<<get<2>(tokens[index])+1<<endl;
                 parser_error = 1;
-                synchronize();  // Sincronización cuando no se encuentra '('.
+                synchronize();  // Sincronizacion cuando no se encuentra '('.
                 if (STMT_LIST(myID)) {                            
                     if (checkToken("}")) {
                         int closeCurlyBracesID = currentID++;
@@ -2801,7 +2814,7 @@ private:
             else{
                 cout<<"Error: Expected '{'. in line: "<<get<2>(tokens[index])+1<<endl;
                 parser_error = 1;
-                synchronize();  // Sincronización cuando no se encuentra '('.
+                synchronize();  // Sincronizacion cuando no se encuentra '('.
                 if (STMT_LIST(myID)) {                            
                     if (checkToken("}")) {
                         int closeCurlyBracesID = currentID++;
@@ -2854,6 +2867,10 @@ private:
                                     int closeParID = currentID++;
                                     addNode(closeParID, myID, ")", "terminal");
                                     goNextToken();
+
+                                    string functionName = getNodeName(myID);
+                                    vector<int> argumentIDs = getArguments(myID);
+                                    validateFunctionCall(functionName, argumentIDs, "parseTree.csv");
                                     if (checkToken("{")) {
                                         int openCurlyBracesID = currentID++;
                                         addNode(openCurlyBracesID, myID, "{", "terminal");
@@ -3079,6 +3096,9 @@ private:
                         int closeParID = currentID++;
                         addNode(closeParID, myID, ")", "terminal");
                         goNextToken();
+                        string functionName = getNodeName(myID);
+                        vector<int> argumentIDs = getArguments(myID);
+                    validateFunctionCall(functionName, argumentIDs, "parseTree.csv");
                         if (checkToken(";")) {
                             int semicolonID = currentID++;
                             addNode(semicolonID, myID, ";", "terminal");
@@ -3812,6 +3832,10 @@ private:
                                         int closeParID = currentID++;
                                         addNode(closeParID, myID, ")", "terminal");
                                         goNextToken();
+
+                                        string functionName = getNodeName(myID);
+                                        vector<int> argumentIDs = getArguments(myID);
+                                        validateFunctionCall(functionName, argumentIDs, "parseTree.csv");
                                         if (FACTOR_REST(myID)) {
                                             guard.commit();
                                             return true;
@@ -3875,6 +3899,10 @@ private:
                         int closeParID = currentID++;
                         addNode(closeParID, myID, ")", "terminal");
                         goNextToken();
+
+                        string functionName = getNodeName(myID);
+                        vector<int> argumentIDs = getArguments(myID);
+                        validateFunctionCall(functionName, argumentIDs, "parseTree.csv");
                         if (FACTOR_REST(myID)) {
                             guard.commit();
                             return true;
